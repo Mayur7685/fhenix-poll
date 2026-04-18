@@ -1,0 +1,28 @@
+{
+  "name": "fhenixpoll-contracts",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localcofhe",
+    "deploy:helium": "hardhat run scripts/deploy.ts --network fhenixHelium",
+    "deploy:arb-sepolia": "hardhat run scripts/deploy.ts --network arbitrumSepolia",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@cofhe/hardhat-plugin": "^0.4.0",
+    "@cofhe/mock-contracts": "^0.4.0",
+    "@cofhe/sdk": "^0.4.0",
+    "@fhenixprotocol/cofhe-contracts": "0.1.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.5",
+    "@nomicfoundation/hardhat-toolbox": "^6.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "dotenv": "^16.0.0",
+    "ethers": "^6.0.0",
+    "hardhat": "^2.26.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0"
+  }
+}
