@@ -16,15 +16,8 @@ The deployed site is fully functional for:
 | Create Poll | ✅ |
 | Cast Vote (FHE-encrypted) | ✅ |
 | Browse Communities & Polls | ✅ |
-| View Results (after tally) | ✅ |
-| **Tally** | ⚠️ Automated (60s interval) or trigger manually |
-
-### Manual tally trigger (live demo):
-
-```bash
-curl -X POST https://zkpoll-verifier.onrender.com/admin/tally/<pollId> \
-  -H "x-admin-secret: <ADMIN_SECRET>"
-```
+| Reveal Tally (creator, after poll closes) | ✅ |
+| View Results | ✅ |
 
 ---
 
@@ -108,6 +101,7 @@ Create `.env`:
 VITE_CONTRACT_ADDRESS=0xd9836FA54D71c2745A26dABa48551E9745983676
 VITE_VERIFIER_URL=http://localhost:3001
 VITE_CHAIN_ID=421614
+VITE_PINATA_GATEWAY=<your_gateway_subdomain>.mypinata.cloud
 ```
 
 ```bash
@@ -173,8 +167,10 @@ Frontend runs at `http://localhost:5173`.
 
 1. Go to **Communities → [Your Community] → Create Poll**
 2. Add title + 2–8 options
-3. Set duration (in blocks — 1 day ≈ 5760 L1 blocks)
+3. Set duration (1 day ≈ 7200 L1 blocks on Arbitrum Sepolia)
 4. Click **Deploy** → approve wallet transaction
+
+> **For quick tally testing:** enable dev mode (see [Dev Mode](#dev-mode-fast-tally-testing) below) to set duration in raw blocks — use `1` block for a poll that closes in ~12 seconds.
 
 ### Step 4 — Vote
 
@@ -182,9 +178,17 @@ Frontend runs at `http://localhost:5173`.
 2. Click options to rank them (1 = top choice)
 3. Click **Submit Vote** → approve wallet transaction (FHE-encrypts your weights on-chain)
 
-### Step 5 — Trigger Tally
+### Step 5 — Reveal Tally
 
-The automated runner checks every 60s. To trigger manually before the poll ends:
+Once the poll's `endBlock` has passed, the poll creator can reveal the tally from the Results page:
+
+1. Go to **Poll → Results**
+2. Click **Reveal Tally** → approve `requestTallyReveal` wallet transaction
+3. The frontend then calls `decryptForTx` (Threshold Network) per option and submits `publishTallyResult` for each
+
+The button is disabled with a message while the poll is still open.
+
+Alternatively, trigger via the verifier backend (works for any ended poll):
 
 ```bash
 curl -X POST http://localhost:3001/admin/tally/<pollId> \
@@ -198,13 +202,37 @@ Expected response:
 { "ok": true, "pollId": "0x..." }
 ```
 
-The tally flow runs: `requestTallyReveal()` → `decryptForTx()` (Threshold Network) → `publishTallyResult()` per option.
-
 ### Step 6 — View Results
 
 1. Go to **Poll → Results**
-2. Results show each option's vote count (read from `revealedTallies` on-chain)
+2. Results show each option's FHE-decrypted vote count (read from `revealedTallies` on-chain)
 3. Results are verifiable directly from the contract — no trust in ZKPoll required
+
+---
+
+## Dev Mode — Fast Tally Testing
+
+To test the full tally flow without waiting for a real poll to close, enable dev mode:
+
+Add to `frontend/.env`:
+```env
+VITE_DEV_MODE=true
+```
+
+Restart the dev server. In dev mode:
+
+- The **Poll Duration** input accepts **raw L1 block counts** instead of days
+- Quick-select buttons show `1blk`, `5blk`, `10blk`
+- Set duration to `1` → poll closes after the next L1 block (~12 seconds on Arbitrum Sepolia)
+
+**Full fast test flow:**
+1. Enable `VITE_DEV_MODE=true`, restart dev server
+2. Create a poll with duration `1` block
+3. Cast a vote
+4. Wait ~12 seconds
+5. Go to Results → click **Reveal Tally**
+
+> Dev mode only affects the duration input. All other behaviour (FHE encryption, gas estimation, on-chain checks) is identical to production.
 
 ---
 
@@ -217,7 +245,7 @@ curl http://localhost:3001/health
 # List communities
 curl http://localhost:3001/communities
 
-# Manually trigger tally
+# Manually trigger tally (verifier backend)
 curl -X POST http://localhost:3001/admin/tally/<pollId> \
   -H "x-admin-secret: <ADMIN_SECRET>"
 ```
@@ -235,8 +263,8 @@ curl -X POST http://localhost:3001/admin/tally/<pollId> \
 | `createPoll` | Community creator | Create poll with FHE-zero tallies |
 | `issueCredential` | Voter | Record on-chain credential after EIP-712 verification |
 | `castVote` | Voter | Submit FHE-encrypted per-option weights |
-| `requestTallyReveal` | Anyone (after end) | Expose ctHashes + queue FHE decryption |
-| `publishTallyResult` | Tally runner | Verify Threshold Network sig + write plaintext |
+| `requestTallyReveal` | Poll creator (after end) | Expose ctHashes + queue FHE decryption |
+| `publishTallyResult` | Anyone | Verify Threshold Network sig + write plaintext |
 
 **Privacy model:**
 - Vote weights are FHE-encrypted — tallies accumulate under encryption, revealing nothing until `publishTallyResult`
@@ -272,15 +300,16 @@ Browser (React + MetaMask + CoFHE client)
 | Issue | Fix |
 |---|---|
 | Render backend slow | Use local setup — first request wakes the instance |
-| `Already voted` | Nullifier enforced on-chain — one vote per address per poll |
-| `Transaction rejected` | Ensure you are the community creator for poll creation |
-| Results not showing | Run manual tally trigger, then refresh results page |
-| Tally fails with "Poll still open" | Wait for endBlock to pass or use `requestTallyReveal` directly after it ends |
+| `Already voted` | One vote per address per poll, enforced on-chain |
+| `Transaction rejected` | Ensure you are the community creator for poll/community creation |
+| `Poll still open` | Wait for `endBlock` to pass — use dev mode (`VITE_DEV_MODE=true`) for fast testing |
+| High gas warning in MetaMask | Expected for FHE operations — gas is estimated with a 30% buffer and capped. Safe to approve. |
+| Results not showing after reveal | Refresh the results page after all `publishTallyResult` transactions confirm |
 
 ---
 
 ## 10. Known Limitations
 
 - **Render cold start:** Live demo sleeps after 15 min idle. Local setup recommended for judging.
-- **Tally time:** Threshold Network decryption takes a few seconds per option. Automated runner handles it.
-- **Block time:** Arbitrum Sepolia L2 blocks are ~0.25s, but `endBlock` is an L1 Ethereum block number (~12s/block). Plan accordingly.
+- **Tally time:** Threshold Network decryption takes a few seconds per option.
+- **Block time:** `endBlock` is an L1 Ethereum Sepolia block number (~12s/block), not an L2 block. A 1-day poll = ~7200 L1 blocks.

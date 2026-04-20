@@ -436,6 +436,8 @@ The tally runner starts automatically on server boot. Every 60 seconds it:
 
 **To disable:** Remove `FHENIX_CONTRACT_ADDRESS` or `VERIFIER_PRIVATE_KEY` from `.env` — the runner logs a warning and exits cleanly.
 
+> **Note:** `requestTallyReveal` on-chain requires `msg.sender` to be the poll creator. The automated runner can only reveal tallies for polls created by the wallet corresponding to `VERIFIER_PRIVATE_KEY`. For polls created by other wallets, the poll creator must trigger reveal from the Results page in the frontend.
+
 ---
 
 ## Error Codes

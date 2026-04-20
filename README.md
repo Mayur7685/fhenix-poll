@@ -19,7 +19,7 @@ Verifier  ──►  EIP-712 credential attestation                      │  po
 1. **Community creator** registers a community on-chain and defines membership requirements (token balance, NFT, Discord role, X follow, etc.)
 2. **Voter** connects external accounts, verifier checks eligibility off-chain, and issues an EIP-712 signed attestation — no server signing key touches chain
 3. **Voter** submits encrypted vote weights via `castVote()` — FHE addition keeps the running tally homomorphically encrypted
-4. **After poll ends**, anyone calls `requestTallyReveal()` — the contract calls `FHE.allowPublic` + `FHE.decrypt` for each option
+4. **After poll ends**, the **poll creator** calls `requestTallyReveal()` from the Results page — the contract calls `FHE.allowPublic` + `FHE.decrypt` for each option
 5. **Tally runner** reads the ctHashes, calls `decryptForTx` against the Threshold Network, then calls `publishTallyResult()` with the verified plaintext + signature
 6. Anyone can verify results by reading `revealedTallies` directly from the contract
 
@@ -45,7 +45,7 @@ Verifier  ──►  EIP-712 credential attestation                      │  po
 - After voting, the UI shows the voter's submitted rankings
 
 ### Voting power decay
-Voting power decays over 5 periods (~90 days each at 5760 blocks/day) to incentivise active participation:
+Voting power decays over 5 periods (~90 days each at 7200 blocks/day) to incentivise active participation:
 
 ```
 Period 1: 100% → Period 2: 50% → Period 3: 25% → Period 4: 12.5% → Period 5: 6.25% → deactivated
@@ -56,9 +56,9 @@ Period 1: 100% → Period 2: 50% → Period 3: 25% → Period 4: 12.5% → Perio
 The UI shows a live EV / VP% / CV panel. Voters can recast at any time to restore 100% VP.
 
 ### Tally & Results
-- Automated tally runner checks on-chain every 60 seconds for ended polls
-- Calls `requestTallyReveal()`, then for each option: `decryptForTx` → `publishTallyResult()`
+- After the poll closes, the **poll creator** clicks "Reveal Tally" on the Results page — this calls `requestTallyReveal()`, then `decryptForTx` per option, then `publishTallyResult()` per option
 - Results page reads `revealedTallies` directly from the contract — no trust in the verifier
+- Automated tally runner in the verifier also checks every 60 seconds as a fallback
 - Manual tally trigger via `POST /admin/tally/:pollId` (requires `x-admin-secret` header)
 
 ## Project structure
@@ -150,6 +150,7 @@ Runs on `http://localhost:5173`.
 | `VITE_CONTRACT_ADDRESS` | Deployed FhenixPoll contract address |
 | `VITE_VERIFIER_URL` | Verifier backend URL (default: `http://localhost:3001`) |
 | `VITE_CHAIN_ID` | Chain ID — `421614` for Arbitrum Sepolia |
+| `VITE_DEV_MODE` | Set `true` to use raw block counts for poll duration (for testing) |
 
 ### `verifier/.env`
 
@@ -194,7 +195,7 @@ Requirements are grouped with `AND`/`OR` logic. Each type carries a configurable
 
 ## Voting power decay
 
-Voting power decays over 5 periods (each ~90 days at 5760 blocks/day):
+Voting power decays over 5 periods (each ~90 days at 7200 blocks/day):
 
 ```
 Period 1: 100%  →  Period 2: 50%  →  Period 3: 25%  →  Period 4: 12.5%  →  Period 5: 6.25%  →  deactivated
@@ -260,7 +261,7 @@ All in `FhenixPoll.sol` (Arbitrum Sepolia):
 | `createPoll` | Community creator | Create poll with FHE-encrypted zero tallies |
 | `issueCredential` | Voter (after verifier EIP-712 attest) | Mark address as credentialed for a community |
 | `castVote` | Voter | Submit FHE-encrypted per-option weights |
-| `requestTallyReveal` | Anyone (after poll ends) | `FHE.allowPublic` + `FHE.decrypt` per option |
+| `requestTallyReveal` | Poll creator (after poll ends) | `FHE.allowPublic` + `FHE.decrypt` per option |
 | `publishTallyResult` | Tally runner | Verify Threshold Network signature + write plaintext |
 
 ## Security notes

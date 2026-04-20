@@ -9,8 +9,8 @@ import { useParams, Link } from 'react-router-dom'
 import { useCofheWriteContract, useCofheClient } from '@cofhe/react'
 import { useConnection } from 'wagmi'
 import { arbitrumSepolia } from '../lib/chains'
-import { getPoll, getRevealedTally, getTallyCtHash, publicClient } from '../lib/fhenix'
-import { getGasFees } from '../lib/gas'
+import { getPoll, getRevealedTally, getTallyCtHash, getBlockHeight, publicClient } from '../lib/fhenix'
+import { getGasFees, estimateRequestTallyRevealGas, estimatePublishTallyResultGas } from '../lib/gas'
 import { getCommunityById } from '../lib/verifier'
 import { FHENIX_POLL_ABI, CONTRACT_ADDRESS } from '../lib/abi'
 import type { CommunityConfig, PollInfo } from '../types'
@@ -28,6 +28,7 @@ export default function PollResults() {
   const [tallyRevealed, setTallyRevealed] = useState(false)
   const [optionCount, setOptionCount]     = useState(0)
   const [pollCreator, setPollCreator]     = useState<string | null>(null)
+  const [pollClosed, setPollClosed]       = useState(false)
   const [tally, setTally]                 = useState<TallyEntry[]>([])
   const [loading, setLoading]             = useState(true)
   const [revealStatus, setRevealStatus]   = useState<'idle' | 'requesting' | 'publishing' | 'done' | 'error'>('idle')
@@ -51,6 +52,9 @@ export default function PollResults() {
         setOptionCount(onChainPoll.optionCount)
         setPollCreator(onChainPoll.creator)
         setTallyRevealed(onChainPoll.tallyRevealed)
+
+        const currentBlock = await getBlockHeight()
+        setPollClosed(currentBlock > onChainPoll.endBlock)
 
         if (onChainPoll.tallyRevealed && onChainPoll.optionCount > 0) {
           const entries: TallyEntry[] = await Promise.all(
@@ -78,7 +82,10 @@ export default function PollResults() {
     setRevealStatus('requesting'); setRevealError(null)
     try {
       // Step 1 — request tally reveal (marks tallyRevealed=true, calls FHE.allowPublic + FHE.decrypt)
-      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasFees()
+      const [{ maxFeePerGas, maxPriorityFeePerGas }, gas] = await Promise.all([
+        getGasFees(),
+        estimateRequestTallyRevealGas(pollId as `0x${string}`, address),
+      ])
       const hash = await writeContractAsync({
         chain:   arbitrumSepolia,
         account: address,
@@ -86,6 +93,7 @@ export default function PollResults() {
         abi:     FHENIX_POLL_ABI,
         functionName: 'requestTallyReveal',
         args:    [pollId as `0x${string}`],
+        gas,
         maxFeePerGas,
         maxPriorityFeePerGas,
       })
@@ -106,7 +114,10 @@ export default function PollResults() {
           .execute()
 
         // Publish signed plaintext on-chain (uint32 → number cast for viem ABI encoding)
-        const { maxFeePerGas: f, maxPriorityFeePerGas: p } = await getGasFees()
+        const [{ maxFeePerGas: f, maxPriorityFeePerGas: p }, pubGas] = await Promise.all([
+          getGasFees(),
+          estimatePublishTallyResultGas(pollId as `0x${string}`, i, Number(decryptedValue), signature as `0x${string}`, address),
+        ])
         const pubHash = await writeContractAsync({
           chain:   arbitrumSepolia,
           account: address,
@@ -114,6 +125,7 @@ export default function PollResults() {
           abi:     FHENIX_POLL_ABI,
           functionName: 'publishTallyResult',
           args:    [pollId as `0x${string}`, i, Number(decryptedValue), signature as `0x${string}`],
+          gas:     pubGas,
           maxFeePerGas: f,
           maxPriorityFeePerGas: p,
         })
@@ -265,7 +277,7 @@ export default function PollResults() {
                 <div className="px-5 pb-5 text-center">
                   <button
                     onClick={() => void handleReveal()}
-                    disabled={revealStatus === 'requesting' || revealStatus === 'publishing'}
+                    disabled={!pollClosed || revealStatus === 'requesting' || revealStatus === 'publishing'}
                     className="inline-flex items-center gap-2 bg-[#0070F3] hover:bg-blue-600 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-60"
                   >
                     {(revealStatus === 'requesting' || revealStatus === 'publishing') && (
@@ -279,6 +291,9 @@ export default function PollResults() {
                   </button>
                   {revealError && (
                     <p className="text-xs text-red-500 mt-2">{revealError}</p>
+                  )}
+                  {!pollClosed && (
+                    <p className="text-xs text-amber-500 mt-2">Poll is still open — reveal available after it closes.</p>
                   )}
                   <p className="text-xs text-gray-400 mt-2">
                     Requests FHE decryption, then publishes each option result on-chain.

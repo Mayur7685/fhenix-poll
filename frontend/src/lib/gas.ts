@@ -11,9 +11,31 @@ export async function getGasFees(): Promise<{
 }> {
   const fees = await publicClient.estimateFeesPerGas()
   return {
-    maxFeePerGas:         fees.maxFeePerGas         ?? 100_000_000n,
-    maxPriorityFeePerGas: fees.maxPriorityFeePerGas ?? 1_000_000n,
+    maxFeePerGas:         fees.maxFeePerGas                          ?? 100_000_000n,
+    // Arbitrum Sepolia returns 0n for priority fee — use || so 0n also falls back
+    maxPriorityFeePerGas: fees.maxPriorityFeePerGas || 1_000_000n,
   }
+}
+
+async function estimateGas(
+  functionName: string,
+  args: unknown[],
+  account: `0x${string}`,
+  fallback: bigint,
+  cap: bigint,
+): Promise<bigint> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const estimate = await (publicClient as any).estimateContractGas({
+    address: CONTRACT_ADDRESS,
+    abi:     FHENIX_POLL_ABI,
+    functionName,
+    args,
+    account,
+  }).catch(() => null) as bigint | null
+
+  if (!estimate) return fallback
+  const withBuffer = estimate * 130n / 100n // +30 %
+  return withBuffer > cap ? cap : withBuffer
 }
 
 /**
@@ -26,17 +48,22 @@ export async function estimateCastVoteGas(
   encodedWeights: unknown[],
   account:        `0x${string}`,
 ): Promise<bigint> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const estimate = await (publicClient as any).estimateContractGas({
-    address:      CONTRACT_ADDRESS,
-    abi:          FHENIX_POLL_ABI,
-    functionName: 'castVote',
-    args:         [pollId, encodedWeights],
-    account,
-  }).catch(() => null) as bigint | null
+  return estimateGas('castVote', [pollId, encodedWeights], account, 3_000_000n, 5_000_000n)
+}
 
-  if (!estimate) return 3_000_000n          // safe fallback
-  const withBuffer = estimate * 130n / 100n // +30 %
-  // Hard cap: 5 M gas — prevents wallet balance drain on any overestimate
-  return withBuffer > 5_000_000n ? 5_000_000n : withBuffer
+export async function estimateRequestTallyRevealGas(
+  pollId:  `0x${string}`,
+  account: `0x${string}`,
+): Promise<bigint> {
+  return estimateGas('requestTallyReveal', [pollId], account, 3_000_000n, 5_000_000n)
+}
+
+export async function estimatePublishTallyResultGas(
+  pollId:         `0x${string}`,
+  optionId:       number,
+  decryptedValue: number,
+  signature:      `0x${string}`,
+  account:        `0x${string}`,
+): Promise<bigint> {
+  return estimateGas('publishTallyResult', [pollId, optionId, decryptedValue, signature], account, 1_000_000n, 3_000_000n)
 }

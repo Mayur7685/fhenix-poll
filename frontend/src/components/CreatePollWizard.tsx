@@ -1,5 +1,8 @@
 // Create Poll Wizard — 3 steps: Poll Setup → Options → Deploy.
 // On-chain: createPoll(pollId, communityId, credType, durationBlocks, optionCount)
+// Duration UI: days → blocks conversion (BLOCKS_PER_DAY on Arbitrum Sepolia L1 ~12s/block)
+// Dev mode: VITE_DEV_MODE=true → duration input is raw blocks (set 1 for instant close)
+
 // Off-chain: IPFS pin via verifier proxy (pinata.ts)
 
 import { useState, useEffect } from 'react'
@@ -16,6 +19,7 @@ import type { CommunityConfig, PollOptionInfo } from '../types'
 
 // Arbitrum Sepolia: block.number in Solidity = L1 Ethereum Sepolia block (~12s) → 7200 blocks/day
 const BLOCKS_PER_DAY = 7_200
+const DEV_MODE = import.meta.env.VITE_DEV_MODE === 'true'
 
 interface OptionDraft { draftId: number; label: string; parentDraftId: number }
 
@@ -140,7 +144,7 @@ export default function CreatePollWizard() {
 
     try {
       const blockHeight = await getBlockHeight()
-      const durationBlocks = durationDays * BLOCKS_PER_DAY
+      const durationBlocks = DEV_MODE ? durationDays : durationDays * BLOCKS_PER_DAY
       console.log(`[CreatePoll] durationDays=${durationDays} BLOCKS_PER_DAY=${BLOCKS_PER_DAY} durationBlocks=${durationBlocks} blockHeight=${blockHeight}`)
       const optionList = buildOptionList(options)
       const pollId = pollIdFromTitle(selectedCommunity.community_id as `0x${string}`, title)
@@ -257,9 +261,9 @@ export default function CreatePollWizard() {
                 </div>
               )}
               <div>
-                <label className={labelCls}>Poll Duration</label>
+                <label className={labelCls}>Poll Duration{DEV_MODE && <span className="ml-1 text-amber-500">(DEV: raw blocks)</span>}</label>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {[1, 3, 7, 14, 30].map(d => (
+                  {!DEV_MODE && [1, 3, 7, 14, 30].map(d => (
                     <button key={d} type="button" onClick={() => setDurationDays(d)}
                       className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors ${
                         durationDays === d
@@ -269,14 +273,24 @@ export default function CreatePollWizard() {
                       {d}d
                     </button>
                   ))}
+                  {DEV_MODE && [1, 5, 10].map(d => (
+                    <button key={d} type="button" onClick={() => setDurationDays(d)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                        durationDays === d
+                          ? 'bg-amber-500 text-white border-amber-500'
+                          : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-400'
+                      }`}>
+                      {d}blk
+                    </button>
+                  ))}
                   <div className="flex items-center gap-1.5 ml-1">
                     <input
                       className={`${inputCls} !py-1.5`}
-                      type="number" min={1} max={365} style={{ maxWidth: 80 }}
+                      type="number" min={1} max={DEV_MODE ? 1000 : 365} style={{ maxWidth: 80 }}
                       value={durationDays}
                       onChange={e => setDurationDays(Math.max(1, Number(e.target.value)))}
                     />
-                    <span className="text-xs text-gray-400 whitespace-nowrap">days</span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">{DEV_MODE ? 'blocks' : 'days'}</span>
                   </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-1.5">Enforced on-chain — votes rejected after deadline.</p>
@@ -334,7 +348,7 @@ export default function CreatePollWizard() {
                     ['Title', title],
                     ...(description ? [['Description', description]] : []),
                     ['Required Credential', `Type ${selectedCommunity?.credential_type ?? 1}`],
-                    ['Duration', `${durationDays} day${durationDays !== 1 ? 's' : ''} (on-chain enforced)`],
+                    ['Duration', DEV_MODE ? `${durationDays} block${durationDays !== 1 ? 's' : ''} (dev mode)` : `${durationDays} day${durationDays !== 1 ? 's' : ''} (on-chain enforced)`],
                     ['Options', `${options.length} (${options.map(o => o.label).join(', ')})`],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between items-start text-sm">

@@ -27,7 +27,7 @@ const HOW_IT_WORKS = [
   {
     step: '02',
     title: 'Rank your choices',
-    body: 'Cast ranked-choice ballots with up to 8 options. Your vote weights are FHE-encrypted — tallied homomorphically without revealing individual ballots.',
+    body: 'Cast ranked-choice ballots with up to 8 options. Your vote weights are FHE encrypted and tallied homomorphically without revealing individual ballots.',
     colour: 'bg-emerald-50 text-emerald-600 border-emerald-100',
   },
   {
@@ -103,7 +103,7 @@ export default function LandingPage() {
 
           <p className="mt-7 text-lg text-gray-500 max-w-xl leading-relaxed">
             Credentials prove eligibility. Vote weights are FHE-encrypted.
-            Tallies computed homomorphically — no vote ever revealed.
+            Tallies computed homomorphically no vote ever revealed.
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
@@ -119,8 +119,8 @@ export default function LandingPage() {
           {/* Three pillars */}
           <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full text-left">
             {[
-              { icon: '🔒', title: 'Votes are FHE-encrypted', body: 'Your ballot weights are encrypted client-side before submission. The chain tallies homomorphically — nobody sees individual votes.' },
-              { icon: '⚖️', title: 'EV × VP% = CV', body: 'Eligible Votes reflect your stake. Voting Power decays over time. Counted Votes is the product — recast anytime to restore.' },
+              { icon: '🔒', title: 'Votes are FHE-encrypted', body: 'Your ballot weights are encrypted client-side before submission. The chain tallies homomorphically and nobody sees individual votes.' },
+              { icon: '⚖️', title: 'EV × VP% = CV', body: 'Eligible Votes reflect your stake. Voting Power decays over time. Counted Votes is the product recast anytime to restore.' },
               { icon: '🌐', title: 'Verifiable results', body: 'The Fhenix network decrypts the aggregate tally on-chain. Audit the outcome without revealing individual votes.' },
             ].map(({ icon, title, body }) => (
               <div key={title} className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
@@ -238,7 +238,7 @@ export default function LandingPage() {
             <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
             <div className="relative z-10 flex flex-col items-center">
               <h2 className="text-3xl sm:text-4xl font-semibold text-white tracking-tight leading-tight mb-4">
-                Nobody — not even us —<br/>
+                Nobody not even us<br/>
                 <span className="text-[#0070F3]">can see how you voted.</span>
               </h2>
               <p className="text-gray-400 text-sm max-w-md leading-relaxed mb-10">
@@ -246,7 +246,7 @@ export default function LandingPage() {
                 Your ballot is encrypted. Only the aggregate tally is ever revealed.
               </p>
               <WalletButton />
-              <p className="mt-4 text-xs text-gray-500">Fully Homomorphic Encryption on Fhenix Helium testnet.</p>
+              <p className="mt-4 text-xs text-gray-500">Fully Homomorphic Encryption on Arbitrum Sepolia.</p>
             </div>
           </div>
         </section>
