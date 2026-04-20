@@ -1,6 +1,6 @@
 # ZKPoll
 
-Privacy-preserving ranked-choice voting powered by Fully Homomorphic Encryption (FHE) on Fhenix / Arbitrum Sepolia. Vote totals accumulate homomorphically under encryption — the plaintext is only revealed after the poll closes via the Threshold Network.
+[Privacy-preserving ranked-choice voting powered by Fully Homomorphic Encryption (FHE) on Fhenix](https://fhenix-poll.vercel.app) / Arbitrum Sepolia. Vote totals accumulate homomorphically under encryption — the plaintext is only revealed after the poll closes via the Threshold Network.
 
 ## How it works
 
