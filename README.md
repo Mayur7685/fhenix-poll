@@ -4,18 +4,7 @@ Privacy-preserving ranked-choice voting powered by Fully Homomorphic Encryption 
 
 ## How it works
 
-```
-User wallet  ──►  FhenixPoll.sol (Arbitrum Sepolia)  ──►  euint32 tallies (FHE-encrypted)
-                                                                   │
-Verifier  ──►  EIP-712 credential attestation                      │  poll ends
-                                                                   ▼
-                                                  requestTallyReveal() → FHE.allowPublic
-                                                         │
-                                                  Threshold Network decrypts
-                                                         │
-                                                  publishTallyResult() → on-chain plaintext
-```
-
+![fenix-poll-working](frontend/public/fhenix-poll-working.svg)
 1. **Community creator** registers a community on-chain and defines membership requirements (token balance, NFT, Discord role, X follow, etc.)
 2. **Voter** connects external accounts, verifier checks eligibility off-chain, and issues an EIP-712 signed attestation — no server signing key touches chain
 3. **Voter** submits encrypted vote weights via `castVote()` — FHE addition keeps the running tally homomorphically encrypted
