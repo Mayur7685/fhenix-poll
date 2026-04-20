@@ -119,9 +119,10 @@ export function computeOptionWeights(
   for (const [optIdStr, rank] of Object.entries(ranking)) {
     if (rank <= 0) continue
     const optId = Number(optIdStr)
-    if (optId < 0 || optId >= optionCount) continue
+    const idx = optId - 1  // option_id is 1-based; weights array is 0-based
+    if (idx < 0 || idx >= optionCount) continue
     const rankScore = Math.floor(1_000_000 / rank)
-    weights[optId] = Math.floor((votingPower * rankScore) / 1_000_000)
+    weights[idx] = Math.floor((votingPower * rankScore) / 1_000_000)
   }
   return weights
 }
