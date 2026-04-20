@@ -53,6 +53,20 @@ export async function checkXFollow(
  * Prefers `userToken` (user-context — uses GET /users/@me/guilds, no bot needed).
  * Falls back to bot token (GET /guilds/{id}/members/{userId} — bot must be in the server).
  */
+async function discordGet(url: string, headers: Record<string, string>): Promise<any> {
+  const res = await axios.get(url, { headers, validateStatus: null })
+  if (res.status === 429) {
+    const retryAfter = parseFloat(res.headers['retry-after'] ?? '1')
+    await new Promise(r => setTimeout(r, retryAfter * 1000))
+    const retry = await axios.get(url, { headers, validateStatus: null })
+    if (retry.status === 429) throw new Error('Discord rate limit — please try again in a moment')
+    if (retry.status >= 400) throw new Error(`Discord API error ${retry.status}`)
+    return retry.data
+  }
+  if (res.status >= 400) throw new Error(`Discord API error ${res.status}`)
+  return res.data
+}
+
 export async function checkDiscordMember(
   userId: string,
   serverId: string,
@@ -60,22 +74,23 @@ export async function checkDiscordMember(
   userToken?: string | null,
 ): Promise<boolean> {
   if (userToken) {
-    // User context: fetch the list of guilds the user belongs to
     try {
-      const res = await axios.get("https://discord.com/api/v10/users/@me/guilds", {
-        headers: { Authorization: `Bearer ${userToken}` },
-      })
-      return (res.data as { id: string }[]).some(g => g.id === serverId)
-    } catch {
+      const guilds = await discordGet(
+        "https://discord.com/api/v10/users/@me/guilds",
+        { Authorization: `Bearer ${userToken}` },
+      )
+      return (guilds as { id: string }[]).some(g => g.id === serverId)
+    } catch (e: any) {
+      if (e.message?.includes('rate limit')) throw e
       // Fall through to bot method
     }
   }
 
   // Bot context: bot must be in the server + have GUILD_MEMBERS intent
   try {
-    await axios.get(
+    await discordGet(
       `https://discord.com/api/v10/guilds/${serverId}/members/${userId}`,
-      { headers: { Authorization: `Bot ${botToken}` } },
+      { Authorization: `Bot ${botToken}` },
     )
     return true
   } catch {
@@ -95,11 +110,11 @@ export async function checkDiscordRole(
   botToken: string,
 ): Promise<boolean> {
   try {
-    const res = await axios.get(
+    const data = await discordGet(
       `https://discord.com/api/v10/guilds/${serverId}/members/${userId}`,
-      { headers: { Authorization: `Bot ${botToken}` } },
+      { Authorization: `Bot ${botToken}` },
     )
-    return (res.data.roles as string[]).includes(roleId)
+    return (data.roles as string[]).includes(roleId)
   } catch {
     return false
   }
