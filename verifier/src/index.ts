@@ -335,7 +335,7 @@ app.post("/communities", async (req: Request, res: Response) => {
     }
   }
 
-  saveCommunityConfig(config)
+  void saveCommunityConfig(config)
   // On-chain register_community is called by the user's wallet in the frontend (Option A).
   res.status(201).json({ community_id: config.community_id, ipfs_cid })
 })
@@ -371,7 +371,7 @@ app.post("/communities/:id/polls", async (req: Request, res: Response) => {
   }
 
   community.polls = [...(community.polls ?? []), poll]
-  saveCommunityConfig(community)
+  void saveCommunityConfig(community)
   // On-chain create_poll is called by the user's wallet in the frontend (Option A).
   res.status(201).json({ poll_id: poll.poll_id, ipfs_cid: poll.ipfs_cid })
 })
@@ -407,7 +407,7 @@ app.post("/communities/confirm", (req: Request, res: Response) => {
   if (!config.community_id || !config.name) {
     return res.status(400).json({ error: "Missing community_id or name" })
   }
-  saveCommunityConfig({ ...config, polls: config.polls ?? [] })
+  void saveCommunityConfig({ ...config, polls: config.polls ?? [] })
   console.log(`[confirm] Community ${config.community_id} saved to local store`)
   res.json({ ok: true })
 })
@@ -622,7 +622,7 @@ app.delete("/communities/:id/polls/:pollId", (req: Request, res: Response) => {
   const before = (community.polls ?? []).length
   community.polls = (community.polls ?? []).filter(p => p.poll_id !== req.params.pollId)
   if (community.polls.length === before) return res.status(404).json({ error: "Poll not found" })
-  saveCommunityConfig(community)
+  void saveCommunityConfig(community)
   res.json({ ok: true, removed: req.params.pollId })
 })
 
@@ -719,7 +719,7 @@ app.post("/posts/confirm", (req: Request, res: Response) => {
   if (!post.post_id || !post.community_id || !post.author) {
     return res.status(400).json({ error: "Missing required fields" })
   }
-  savePost(post)
+  void savePost(post)
   res.json({ ok: true })
 })
 
@@ -763,7 +763,7 @@ app.post("/quests/confirm", (req: Request, res: Response) => {
   if (!quest.quest_id || !quest.community_id) {
     return res.status(400).json({ error: "Missing required fields" })
   }
-  saveQuest(quest)
+  void saveQuest(quest)
   res.json({ ok: true })
 })
 
@@ -801,7 +801,7 @@ app.post("/quests/:questId/progress", async (req: Request, res: Response) => {
   if (!participant || progress === undefined) {
     return res.status(400).json({ error: "Missing participant or progress" })
   }
-  saveQuestProgress({ quest_id: req.params.questId, participant, progress, completed: completed ?? false })
+  void saveQuestProgress({ quest_id: req.params.questId, participant, progress, completed: completed ?? false })
   res.json({ ok: true })
 })
 
@@ -824,7 +824,7 @@ app.post("/posts/confirm", (req: Request, res: Response) => {
   if (!post.post_id || !post.community_id || !post.author) {
     return res.status(400).json({ error: "Missing required fields" })
   }
-  savePost(post)
+  void savePost(post)
   res.json({ ok: true })
 })
 
@@ -857,7 +857,7 @@ app.post("/quests/confirm", (req: Request, res: Response) => {
   if (!quest.quest_id || !quest.community_id) {
     return res.status(400).json({ error: "Missing required fields" })
   }
-  saveQuest(quest)
+  void saveQuest(quest)
   res.json({ ok: true })
 })
 
@@ -885,20 +885,27 @@ app.post("/quests/:questId/progress", (req: Request, res: Response) => {
   if (!participant || progress === undefined) {
     return res.status(400).json({ error: "Missing participant or progress" })
   }
-  saveQuestProgress({ quest_id: req.params.questId, participant, progress, completed: completed ?? false })
+  void saveQuestProgress({ quest_id: req.params.questId, participant, progress, completed: completed ?? false })
   res.json({ ok: true })
 })
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-loadCommunities()
-initSubmissions()
-initPosts()
-initQuests()
-void startTallyRunner()
-void startQuestRunner()
-
+// Startup — init all stores (async Pinata hydration) then start background runners
 const PORT = Number(process.env.PORT ?? 3001)
-app.listen(PORT, () => {
-  console.log(`FhenixPoll verifier running on http://localhost:${PORT}`)
+
+Promise.all([
+  loadCommunities(),
+  initPosts(),
+  initQuests(),
+]).then(() => {
+  initSubmissions()
+  void startTallyRunner()
+  void startQuestRunner()
+  app.listen(PORT, () => {
+    console.log(`FhenixPoll verifier running on http://localhost:${PORT}`)
+  })
+}).catch(e => {
+  console.error("Startup failed:", e)
+  process.exit(1)
 })

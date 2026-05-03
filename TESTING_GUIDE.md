@@ -133,7 +133,7 @@ curl -X POST http://localhost:3001/quests/<QUEST_ID>/progress \
 | Tally reverts with no reason | Poll has no votes — tally runner skips it automatically |
 | "FHE key error" on vote | Fhenix testnet node temporarily unavailable — retry in a few minutes |
 | Results page stuck loading | Hard refresh; check browser console for errors |
-| Old polls not tallying | Clear verifier cache: `rm -rf verifier/communities/*` and restart |
+| Old polls not tallying | Old contract data — restart verifier; it will skip polls not found on current contract |
 | "Poll still open" revert | Tally runner waits `endBlock + 2` L1 blocks before attempting reveal |
 
 ---

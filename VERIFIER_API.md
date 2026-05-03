@@ -62,6 +62,8 @@ Returns `{ "verified": true }`.
 
 ## 4. Communities
 
+Community configs are stored on **IPFS via Pinata** (no local files). On startup the verifier lists all `community-*` and `poll-*` pins from Pinata and hydrates an in-memory Map. All writes upload to IPFS and update the Map.
+
 ### `GET /communities`
 List all communities (includes `polls` array).
 

@@ -1,30 +1,9 @@
-import fs from "fs"
-import path from "path"
-import { fileURLToPath } from "url"
 import { QuestInfo, QuestProgress } from "./types.js"
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const QUESTS_DIR   = path.join(__dirname, "..", "quests")
-const PROGRESS_DIR = path.join(__dirname, "..", "quest-progress")
+import { isPinataConfigured, pinJSON, fetchFromIPFS, listPinsByPrefix } from "./pinata.js"
 
 const questStore    = new Map<string, QuestInfo>()
 const byComm        = new Map<string, string[]>()
 const progressStore = new Map<string, QuestProgress>() // key: questId:address
-
-export function initQuests(): void {
-  if (!fs.existsSync(QUESTS_DIR))   fs.mkdirSync(QUESTS_DIR,   { recursive: true })
-  if (!fs.existsSync(PROGRESS_DIR)) fs.mkdirSync(PROGRESS_DIR, { recursive: true })
-
-  for (const file of fs.readdirSync(QUESTS_DIR).filter(f => f.endsWith(".json"))) {
-    const quest = JSON.parse(fs.readFileSync(path.join(QUESTS_DIR, file), "utf-8")) as QuestInfo
-    _indexQuest(quest)
-  }
-  for (const file of fs.readdirSync(PROGRESS_DIR).filter(f => f.endsWith(".json"))) {
-    const p = JSON.parse(fs.readFileSync(path.join(PROGRESS_DIR, file), "utf-8")) as QuestProgress
-    progressStore.set(`${p.quest_id}:${p.participant.toLowerCase()}`, p)
-  }
-  console.log(`Loaded ${questStore.size} quest(s)`)
-}
 
 function _indexQuest(quest: QuestInfo) {
   questStore.set(quest.quest_id, quest)
@@ -33,9 +12,41 @@ function _indexQuest(quest: QuestInfo) {
   byComm.set(quest.community_id, list)
 }
 
-export function saveQuest(quest: QuestInfo): void {
-  fs.writeFileSync(path.join(QUESTS_DIR, `${quest.quest_id}.json`), JSON.stringify(quest, null, 2))
+export async function initQuests(): Promise<void> {
+  if (!isPinataConfigured()) return
+  try {
+    const [questPins, progressPins] = await Promise.all([
+      listPinsByPrefix("quest-"),
+      listPinsByPrefix("quest-progress-"),
+    ])
+    await Promise.all([
+      ...questPins
+        .filter(p => !p.name.startsWith("quest-progress-"))
+        .map(async pin => {
+          try {
+            const quest = await fetchFromIPFS<QuestInfo>(pin.cid)
+            if (quest.quest_id) _indexQuest(quest)
+          } catch { /* skip */ }
+        }),
+      ...progressPins.map(async pin => {
+        try {
+          const p = await fetchFromIPFS<QuestProgress>(pin.cid)
+          if (p.quest_id && p.participant)
+            progressStore.set(`${p.quest_id}:${p.participant.toLowerCase()}`, p)
+        } catch { /* skip */ }
+      }),
+    ])
+    console.log(`[quests] Loaded ${questStore.size} quest(s) from Pinata`)
+  } catch (e: any) {
+    console.warn("[quests] Pinata load failed (non-fatal):", e.message)
+  }
+}
+
+export async function saveQuest(quest: QuestInfo): Promise<void> {
   _indexQuest(quest)
+  if (isPinataConfigured()) {
+    try { await pinJSON(quest, `quest-${quest.quest_id}`) } catch { /* non-fatal */ }
+  }
 }
 
 export function getQuest(questId: string): QuestInfo | undefined {
@@ -46,11 +57,14 @@ export function getCommunityQuests(communityId: string): QuestInfo[] {
   return (byComm.get(communityId) ?? []).map(id => questStore.get(id)!).filter(Boolean)
 }
 
-export function saveQuestProgress(p: QuestProgress): void {
+export async function saveQuestProgress(p: QuestProgress): Promise<void> {
   const key = `${p.quest_id}:${p.participant.toLowerCase()}`
-  const file = path.join(PROGRESS_DIR, `${p.quest_id}-${p.participant.toLowerCase()}.json`)
-  fs.writeFileSync(file, JSON.stringify(p, null, 2))
   progressStore.set(key, p)
+  if (isPinataConfigured()) {
+    try {
+      await pinJSON(p, `quest-progress-${p.quest_id}-${p.participant.toLowerCase()}`)
+    } catch { /* non-fatal */ }
+  }
 }
 
 export function getQuestProgress(questId: string, participant: string): QuestProgress | undefined {

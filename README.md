@@ -32,7 +32,7 @@
 ### Communities
 - Create a community with name, description, logo, and credential type
 - Define membership requirements with `AND`/`OR` group logic — mix token balance, NFT ownership, social follows, Discord roles, GitHub accounts, and more
-- Community metadata optionally pinned to IPFS via Pinata
+- Community metadata pinned to IPFS via Pinata (required for persistence)
 - Only the community creator can create polls
 
 ### Credentials
@@ -102,7 +102,7 @@ zkpoll/
 │       ├── oauth.ts         # Twitter, Discord, GitHub, Telegram OAuth
 │       ├── issuer.ts        # EIP-712 credential attestation signing
 │       └── checkers/        # Per-requirement-type check implementations
-└── communities/             # JSON store — one file per community + polls
+└── (no local storage — all data persists on IPFS via Pinata)
 ```
 
 ## Quick start
@@ -149,7 +149,7 @@ npm install && npm run dev
 | `DISCORD_CLIENT_ID/SECRET` | Discord OAuth | Discord connect flow |
 | `GITHUB_CLIENT_ID/SECRET` | GitHub OAuth | GitHub connect flow |
 | `TELEGRAM_BOT_TOKEN/USERNAME` | Telegram | Widget auth |
-| `PINATA_JWT` / `PINATA_GATEWAY` | Optional | IPFS pinning |
+| `PINATA_JWT` / `PINATA_GATEWAY` | **Required** | IPFS storage — all community/poll/post/quest data persists on IPFS (no local files) |
 | `APP_URL` | OAuth | Verifier's public URL for OAuth callbacks |
 
 ## Contract functions
