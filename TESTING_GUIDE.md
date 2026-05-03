@@ -1,315 +1,144 @@
-# ZKPoll — End-to-End Testing Guide
+# ZKPoll — Testing Guide
 
-**Contract:** `FhenixPoll.sol` on Arbitrum Sepolia (`0xb7d950264800EA297253EA583461E39168DDA8B5`)  
-**Note:** The live demo backend runs on Render free tier — first request after idle may take 30–60s to wake up. For instant response, run locally using this guide.
-
----
-
-## Quick Start — Live Demo
-
-The deployed site is fully functional for:
-
-| Feature | Status |
-|---|---|
-| Create Community | ✅ |
-| Credential Issuance (all requirement types) | ✅ |
-| Create Poll | ✅ |
-| Cast Vote (FHE-encrypted) | ✅ |
-| Browse Communities & Polls | ✅ |
-| Reveal Tally (creator, after poll closes) | ✅ |
-| View Results | ✅ |
+**Contract:** `FhenixPoll.sol` on Arbitrum Sepolia (`0x9dC0044FdB877F1F017D5853150b0B9725b26397`)  
+**Chain ID:** 421614 (Arbitrum Sepolia)
 
 ---
 
-## Full Local Setup
+## Prerequisites
 
-**Requirements:**
-
-| Tool | Version |
-|---|---|
-| Node.js | 18+ |
-| Git | Any |
-| MetaMask (or any EVM wallet) | Latest |
-| Arbitrum Sepolia ETH | ~0.01 ETH from faucet |
+- MetaMask or any EVM wallet on Arbitrum Sepolia
+- ~0.01 Arbitrum Sepolia ETH ([faucet](https://faucet.quicknode.com/arbitrum/sepolia))
+- Node.js 18+
 
 ---
 
-## 1. Clone & Setup
+## Local Setup
 
+### 1. Verifier
 ```bash
-git clone https://github.com/<your-repo>/zkpoll
-cd zkpoll/zkpoll
-```
-
----
-
-## 2. Verifier Backend
-
-> **Fastest path for local testing:** Use `FREE` requirement type — no OAuth keys, no tokens needed. Any connected EVM wallet gets a credential instantly.
-
-```bash
-cd verifier
+cd zkpoll/verifier
 cp .env.example .env
+# Required: VERIFIER_PRIVATE_KEY, FHENIX_CONTRACT_ADDRESS, DEPLOYMENT_L2_BLOCK
+npm install && npm run dev
+# → http://localhost:3001
 ```
 
-Minimum config for local testing:
-
-```env
-# Deployed FhenixPoll contract on Arbitrum Sepolia
-FHENIX_CONTRACT_ADDRESS=0xb7d950264800EA297253EA583461E39168DDA8B5
-FHENIX_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
-
-# EVM private key — signs EIP-712 attestations + submits tally transactions
-# Generate: openssl rand -hex 32
-VERIFIER_PRIVATE_KEY=0x<your_private_key>
-
-# Secret for POST /admin/tally/:pollId
-ADMIN_SECRET=<random_secret>
-
-# Alchemy — for EVM token/NFT checks (get free key at alchemy.com)
-ALCHEMY_API_KEY=<your_alchemy_key>
-
-# Pinata IPFS — optional but recommended
-PINATA_JWT=<your_pinata_jwt>
-PINATA_GATEWAY=<your_gateway_subdomain>
-
-APP_URL=http://localhost:5173
-PORT=3001
-```
-
+### 2. Frontend
 ```bash
-npm install
-npm run dev
+cd zkpoll/frontend
+cp .env.example .env
+# Set: VITE_CONTRACT_ADDRESS=0x9dC0044FdB877F1F017D5853150b0B9725b26397
+# Set: VITE_VERIFIER_URL=http://localhost:3001
+npm install && npm run dev
+# → http://localhost:5173
 ```
 
-Verify:
+### 3. Unit tests
 ```bash
-curl http://localhost:3001/health
-# → {"status":"ok","service":"zkpoll-verifier"}
+cd zkpoll/contracts && npx hardhat test
+# 34 passing
 ```
 
 ---
 
-## 3. Frontend
+## Feature Testing
 
+### Community
+1. Connect wallet → **Create Community**
+2. Fill name, description, credential type (use **Open** for fastest testing)
+3. Approve wallet tx → community appears in feed
+
+### Credential (Open community)
+1. Community page → **Get Credential** → **Verify**
+2. Approve `issueCredential` tx
+3. EV/VP%/CV panel appears
+
+### Flat Poll
+1. Community page → **+ Poll** → select **Flat** type
+2. Duration: `1blk` (dev mode — closes in ~12s)
+3. Add 3+ options → **Deploy** → approve tx
+
+### Hierarchical Poll
+1. **+ Poll** → select **Hierarchical** type
+2. Add root options, click **+ Sub** to add children
+3. Deploy → verify tree on-chain:
 ```bash
-cd ../frontend
+cast call 0x9dC0044FdB877F1F017D5853150b0B9725b26397 \
+  "getPollOption(bytes32,uint8)((uint8,uint8,uint8,bytes32,bool))" \
+  <POLL_ID> 3 --rpc-url https://sepolia-rollup.arbitrum.io/rpc
 ```
 
-Create `.env`:
-```env
-VITE_CONTRACT_ADDRESS=0xb7d950264800EA297253EA583461E39168DDA8B5
-VITE_VERIFIER_URL=http://localhost:3001
-VITE_CHAIN_ID=421614
-VITE_PINATA_GATEWAY=<your_gateway_subdomain>.mypinata.cloud
+### Vote
+1. Open poll → **Vote** tab → rank options → **Submit Vote**
+2. Confirm modal shows all ranked options (including sub-options)
+3. Approve tx → "Vote Submitted" screen
+
+### Tally (automated)
+Tally runner checks every 60s. After poll closes (~12s for 1blk):
+```
+[tally] requestTallyReveal confirmed: 0x...
+[tally] option 0: published plaintext=1000000
+[tally] Poll fully tallied.
 ```
 
+Manual trigger:
 ```bash
-npm install
-npm run dev
-```
-
-Frontend runs at `http://localhost:5173`.
-
----
-
-## 4. Wallet Setup
-
-1. Install MetaMask (or any EVM wallet)
-2. Add **Arbitrum Sepolia** network (Chain ID: `421614`, RPC: `https://sepolia-rollup.arbitrum.io/rpc`)
-3. Get testnet ETH: https://faucet.triangleplatform.com/arbitrum/sepolia or https://www.alchemy.com/faucets/arbitrum-sepolia
-4. Connect wallet at `http://localhost:5173`
-
----
-
-## 5. Full E2E Test Flow
-
-### Step 1 — Create a Community
-
-1. Go to **Communities → New Community**
-2. Fill in name and description
-3. Select **Credential Type:**
-   - **Open (Type 1)** — anyone gets a credential instantly. Best for quick testing.
-   - **Gated (Type 2)** — 1 requirement group, up to 3 requirements
-   - **Multi-gate (Type 3)** — unlimited groups and requirements
-4. Poll type: **Flat**
-5. Click **Create Community** → approve wallet transaction
-6. Wait for on-chain confirmation (~2–5s on Arbitrum Sepolia)
-
-### Step 2 — Get a Credential
-
-1. Go to your community page
-2. Click **Get Credential** → **Verify & Get Credential**
-3. Approve the `issueCredential` wallet transaction
-4. Wait for confirmation
-
-**Requirement types and what you need to connect:**
-
-| Requirement | What it checks | Setup needed |
-|---|---|---|
-| **FREE** | Always passes | Nothing — instant credential |
-| **ALLOWLIST** | Your EVM address is in the list | Connect EVM wallet + sign challenge |
-| **TOKEN_BALANCE** | ERC-20 balance ≥ minimum | Have tokens on connected wallet |
-| **NFT_OWNERSHIP** | Owns an ERC-721 NFT | Own the NFT on connected wallet |
-| **ONCHAIN_ACTIVITY** | Sent ≥ N transactions | Any active EVM wallet |
-| **DOMAIN_OWNERSHIP** | Owns an ENS domain | Own ENS on connected wallet |
-| **X_FOLLOW** | Follows a Twitter handle | Connect X/Twitter via OAuth popup |
-| **DISCORD_MEMBER** | Member of a Discord server | Connect Discord via OAuth popup |
-| **DISCORD_ROLE** | Has a specific Discord role | Connect Discord via OAuth popup |
-| **GITHUB_ACCOUNT** | Repos / followers / org / starred repo / commits | Connect GitHub via OAuth popup |
-| **TELEGRAM_MEMBER** *(Beta)* | Member of a Telegram channel | Connect Telegram + add @zkpollbot as admin |
-
-**Supported EVM chains:** `ethereum`, `base`, `optimism`, `arbitrum`, `ethereum-sepolia`, `base-sepolia`, `arbitrum-sepolia`, `optimism-sepolia`
-
-> **Tip:** Use `FREE` or `ALLOWLIST` with your own address — no tokens or OAuth needed for testing.
-
-### Step 3 — Create a Poll
-
-1. Go to **Communities → [Your Community] → Create Poll**
-2. Add title + 2–8 options
-3. Set duration (1 day ≈ 7200 L1 blocks on Arbitrum Sepolia)
-4. Click **Deploy** → approve wallet transaction
-
-> **For quick tally testing:** enable dev mode (see [Dev Mode](#dev-mode-fast-tally-testing) below) to set duration in raw blocks — use `1` block for a poll that closes in ~12 seconds.
-
-### Step 4 — Vote
-
-1. Go to the poll page → **Vote** tab
-2. Click options to rank them (1 = top choice)
-3. Click **Submit Vote** → approve wallet transaction (FHE-encrypts your weights on-chain)
-
-### Step 5 — Reveal Tally
-
-Once the poll's `endBlock` has passed, the poll creator can reveal the tally from the Results page:
-
-1. Go to **Poll → Results**
-2. Click **Reveal Tally** → approve `requestTallyReveal` wallet transaction
-3. The frontend then calls `decryptForTx` (Threshold Network) per option and submits `publishTallyResult` for each
-
-The button is disabled with a message while the poll is still open.
-
-Alternatively, trigger via the verifier backend (works for any ended poll):
-
-```bash
-curl -X POST http://localhost:3001/admin/tally/<pollId> \
+curl -X POST http://localhost:3001/admin/tally/<POLL_ID> \
   -H "x-admin-secret: <ADMIN_SECRET>"
 ```
 
-Get `<pollId>` from the poll URL: `/communities/<communityId>/polls/<pollId>`
+### Results
+- Navigate to poll → **Results →**
+- Flat poll: bar chart sorted by score
+- Hierarchical poll: nested tree with parent rollup totals and "subtotal" badge
 
-Expected response:
-```json
-{ "ok": true, "pollId": "0x..." }
-```
-
-### Step 6 — View Results
-
-1. Go to **Poll → Results**
-2. Results show each option's FHE-decrypted vote count (read from `revealedTallies` on-chain)
-3. Results are verifiable directly from the contract — no trust in ZKPoll required
-
----
-
-## Dev Mode — Fast Tally Testing
-
-To test the full tally flow without waiting for a real poll to close, enable dev mode:
-
-Add to `frontend/.env`:
-```env
-VITE_DEV_MODE=true
-```
-
-Restart the dev server. In dev mode:
-
-- The **Poll Duration** input accepts **raw L1 block counts** instead of days
-- Quick-select buttons show `1blk`, `5blk`, `10blk`
-- Set duration to `1` → poll closes after the next L1 block (~12 seconds on Arbitrum Sepolia)
-
-**Full fast test flow:**
-1. Enable `VITE_DEV_MODE=true`, restart dev server
-2. Create a poll with duration `1` block
-3. Cast a vote
-4. Wait ~12 seconds
-5. Go to Results → click **Reveal Tally**
-
-> Dev mode only affects the duration input. All other behaviour (FHE encryption, gas estimation, on-chain checks) is identical to production.
-
----
-
-## 6. Useful Curl Commands
-
+Verify on-chain:
 ```bash
-# Health check
-curl http://localhost:3001/health
+cast call 0x9dC0044FdB877F1F017D5853150b0B9725b26397 \
+  "getRevealedTally(bytes32,uint8)(uint32)" <POLL_ID> 0 \
+  --rpc-url https://sepolia-rollup.arbitrum.io/rpc
 
-# List communities
-curl http://localhost:3001/communities
+# For hierarchical rollup:
+cast call 0x9dC0044FdB877F1F017D5853150b0B9725b26397 \
+  "rolledUpTallies(bytes32,uint8)(uint32)" <POLL_ID> 1 \
+  --rpc-url https://sepolia-rollup.arbitrum.io/rpc
+```
 
-# Manually trigger tally (verifier backend)
-curl -X POST http://localhost:3001/admin/tally/<pollId> \
-  -H "x-admin-secret: <ADMIN_SECRET>"
+### Posts
+1. Community page → **Posts** tab → **View Posts** → **+ New Post**
+2. Fill title + body → **Publish** → approve tx
+3. Post appears with IPFS link
+
+### Quests (community creator only)
+1. Community page → **Quests** tab → **View Quests** → **+ New Quest**
+2. Type: `VOTE_COUNT`, Target: `2`, Expires: `30` days → **Create Quest**
+3. Vote in 2 polls → quest runner auto-records progress (120s interval)
+4. Quest card → **Check progress** → progress bar updates
+
+Manual progress update:
+```bash
+curl -X POST http://localhost:3001/quests/<QUEST_ID>/progress \
+  -H "x-admin-secret: <ADMIN_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"participant":"<ADDRESS>","progress":2,"completed":false}'
 ```
 
 ---
 
-## 7. Contract Reference
+## Common Issues
 
-**Contract:** `FhenixPoll.sol` on Arbitrum Sepolia  
-**Address:** `0xb7d950264800EA297253EA583461E39168DDA8B5`
-
-| Function | Caller | Purpose |
-|---|---|---|
-| `registerCommunity` | Community creator | Register community on-chain |
-| `createPoll` | Community creator | Create poll with FHE-zero tallies |
-| `issueCredential` | Voter | Record on-chain credential after EIP-712 verification |
-| `castVote` | Voter | Submit FHE-encrypted per-option weights |
-| `requestTallyReveal` | Poll creator (after end) | Expose ctHashes + queue FHE decryption |
-| `publishTallyResult` | Anyone | Verify Threshold Network sig + write plaintext |
-
-**Privacy model:**
-- Vote weights are FHE-encrypted — tallies accumulate under encryption, revealing nothing until `publishTallyResult`
-- "Who voted" is public, "how they voted" is private until tally
-- `publishTallyResult` verifies the Threshold Network's cryptographic signature — results cannot be forged
-
----
-
-## 8. Architecture
-
-```
-Browser (React + MetaMask + CoFHE client)
-    │
-    ├── FhenixPoll.sol (Arbitrum Sepolia)
-    │       castVote → FHE-encrypted euint32 weights accumulated homomorphically
-    │       requestTallyReveal → FHE.allowPublic + FHE.decrypt per option
-    │       publishTallyResult → Threshold Network signature verified on-chain
-    │
-    └── Verifier (Node.js)
-            ├── Requirement checks (GitHub, Discord, EVM, etc.)
-            ├── EIP-712 attestations → user wallet calls issueCredential
-            └── Tally Runner (60s interval)
-                    ├── getOnChainPoll → detect ended polls
-                    ├── requestTallyReveal → expose ctHashes
-                    ├── decryptForTx → Threshold Network returns plaintext + signature
-                    └── publishTallyResult → write verified plaintext on-chain
-```
-
----
-
-## 9. Troubleshooting
-
-| Issue | Fix |
+| Symptom | Fix |
 |---|---|
-| Render backend slow | Use local setup — first request wakes the instance |
-| `Already voted` | One vote per address per poll, enforced on-chain |
-| `Transaction rejected` | Ensure you are the community creator for poll/community creation |
-| `Poll still open` | Wait for `endBlock` to pass — use dev mode (`VITE_DEV_MODE=true`) for fast testing |
-| High gas warning in MetaMask | Expected for FHE operations — gas is estimated with a 30% buffer and capped. Safe to approve. |
-| Results not showing after reveal | Refresh the results page after all `publishTallyResult` transactions confirm |
+| Tally reverts with no reason | Poll has no votes — tally runner skips it automatically |
+| "FHE key error" on vote | Fhenix testnet node temporarily unavailable — retry in a few minutes |
+| Results page stuck loading | Hard refresh; check browser console for errors |
+| Old polls not tallying | Clear verifier cache: `rm -rf verifier/communities/*` and restart |
+| "Poll still open" revert | Tally runner waits `endBlock + 2` L1 blocks before attempting reveal |
 
 ---
 
-## 10. Known Limitations
+## Arbiscan
 
-- **Render cold start:** Live demo sleeps after 15 min idle. Local setup recommended for judging.
-- **Tally time:** Threshold Network decryption takes a few seconds per option.
-- **Block time:** `endBlock` is an L1 Ethereum Sepolia block number (~12s/block), not an L2 block. A 1-day poll = ~7200 L1 blocks.
+- Contract: https://sepolia.arbiscan.io/address/0x9dC0044FdB877F1F017D5853150b0B9725b26397
+- Events: https://sepolia.arbiscan.io/address/0x9dC0044FdB877F1F017D5853150b0B9725b26397#events

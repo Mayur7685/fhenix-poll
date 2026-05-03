@@ -1,6 +1,6 @@
 # ZKPoll Verifier API Reference
 
-The verifier is a Node.js/Express backend that handles off-chain requirement verification, community/poll registry, OAuth flows, and the automated FHE tally engine. It never holds user funds; private keys are only used for EIP-712 attestation signing and tally transaction submission.
+The verifier is a Node.js/Express backend handling off-chain requirement verification, community/poll registry, OAuth flows, posts, quests, and the automated FHE tally engine.
 
 **Base URL (local):** `http://localhost:3001`
 
@@ -9,340 +9,192 @@ The verifier is a Node.js/Express backend that handles off-chain requirement ver
 ## Table of Contents
 
 1. [Health](#1-health)
-2. [OAuth — Twitter/X](#2-oauth--twitterx)
-3. [OAuth — Discord](#3-oauth--discord)
-4. [OAuth — GitHub](#4-oauth--github)
-5. [OAuth — Telegram](#5-oauth--telegram)
-6. [EVM Wallet Verification](#6-evm-wallet-verification)
-7. [Communities](#7-communities)
-8. [Polls](#8-polls)
-9. [Requirement Verification](#9-requirement-verification)
-10. [Tally](#10-tally)
+2. [OAuth](#2-oauth)
+3. [EVM Wallet Verification](#3-evm-wallet-verification)
+4. [Communities](#4-communities)
+5. [Polls](#5-polls)
+6. [Posts (Wave 4)](#6-posts-wave-4)
+7. [Quests (Wave 4)](#7-quests-wave-4)
+8. [Requirement Verification](#8-requirement-verification)
+9. [Tally](#9-tally)
 
 ---
 
 ## 1. Health
 
 ### `GET /health`
-
-**Response:**
 ```json
-{ "status": "ok", "service": "zkpoll-verifier" }
+{ "status": "ok", "service": "fhenixpoll-verifier" }
 ```
 
 ---
 
-## 2. OAuth — Twitter/X
+## 2. OAuth
 
-Used for `X_FOLLOW` requirement type. Opens a popup OAuth flow.
+All OAuth flows open a popup. Results are broadcast via `BroadcastChannel` + `window.opener.postMessage`.
 
-### `GET /auth/twitter`
+| Route | Provider | Env required |
+|---|---|---|
+| `GET /auth/twitter` | Twitter/X | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` |
+| `GET /auth/discord` | Discord | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` |
+| `GET /auth/github` | GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
+| `GET /auth/telegram` | Telegram | `TELEGRAM_BOT_USERNAME`, `TELEGRAM_BOT_TOKEN` |
 
-Redirects to Twitter OAuth 2.0 authorization page.
-
-**Env required:** `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`
-
-**Flow:**
-1. Frontend opens `GET /auth/twitter` in a popup window
-2. User authorizes on Twitter
-3. Twitter redirects to `/auth/twitter/callback`
-4. Callback sends result via `window.opener.postMessage` + `BroadcastChannel` fallback
-5. Frontend receives the message and stores the connected account
-
-**Note:** `APP_URL` env var must be set to the verifier's own URL, not the frontend URL.
-
----
-
-### `GET /auth/twitter/callback`
-
-Exchanges code for access token, fetches user profile, broadcasts result.
-
-**Success message:**
+Each callback broadcasts:
 ```json
-{ "status": "success", "channel": "zkpoll-twitter", "userId": "123456", "username": "handle" }
+{ "status": "success", "userId": "...", "username": "..." }
 ```
 
 ---
 
-## 3. OAuth — Discord
-
-Used for `DISCORD_MEMBER` and `DISCORD_ROLE` requirement types.
-
-### `GET /auth/discord`
-
-Redirects to Discord OAuth authorization page.
-
-**Env required:** `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
-
----
-
-### `GET /auth/discord/callback`
-
-Exchanges code for token, fetches user profile, broadcasts to `BroadcastChannel("zkpoll-discord")`.
-
-**Success broadcast:**
-```json
-{ "status": "success", "userId": "123456", "username": "user#1234" }
-```
-
----
-
-## 4. OAuth — GitHub
-
-Used for `GITHUB_ACCOUNT` requirement type (repos, followers, org membership, starred repos, commits).
-
-### `GET /auth/github`
-
-Redirects to GitHub OAuth authorization page.
-
-**Env required:** `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
-
----
-
-### `GET /auth/github/callback`
-
-Exchanges code for token, fetches GitHub profile, broadcasts to `BroadcastChannel("zkpoll-github")`.
-
-**Success broadcast:**
-```json
-{ "status": "success", "userId": "octocat", "username": "octocat" }
-```
-
----
-
-## 5. OAuth — Telegram
-
-Used for `TELEGRAM_MEMBER` requirement type. Uses Telegram Login Widget (full-tab redirect).
-
-### `GET /auth/telegram`
-
-Returns an HTML page with the Telegram Login Widget button.
-
-**Env required:** `TELEGRAM_BOT_USERNAME`
-
----
-
-### `GET /auth/telegram/callback`
-
-Verifies the Telegram auth hash (HMAC-SHA256 with bot token), broadcasts result.
-
-**Verification:** `HMAC-SHA256(data_check_string, SHA256(TELEGRAM_BOT_TOKEN))` — rejects if hash doesn't match or `auth_date` is >24h old.
-
-**Success broadcast:**
-```json
-{ "status": "success", "userId": "123456789", "username": "telegramuser" }
-```
-
----
-
-## 6. EVM Wallet Verification
-
-Proves the user controls an EVM address via `personal_sign`. Prevents anyone from claiming another wallet's token balance.
+## 3. EVM Wallet Verification
 
 ### `GET /auth/evm/challenge?address=0x...`
-
-Generates a one-time challenge message for the given EVM address.
-
-**Response:**
-```json
-{
-  "challenge": "Sign this message to verify your EVM wallet for ZKPoll.\n\nAddress: 0x1234...\nNonce: abc123xyz"
-}
-```
-
-- Challenge expires after 5 minutes
-- One challenge per address at a time
-
----
+Returns a one-time challenge (5 min TTL).
 
 ### `POST /auth/evm/verify`
-
-Verifies the EIP-191 signature and confirms address ownership.
-
-**Body:**
 ```json
-{
-  "address": "0x1234...",
-  "challenge": "Sign this message...",
-  "signature": "0xabc..."
-}
+{ "address": "0x...", "challenge": "...", "signature": "0x..." }
 ```
-
-**Response:**
-```json
-{ "verified": true }
-```
+Returns `{ "verified": true }`.
 
 ---
 
-## 7. Communities
-
-Community configs are stored as JSON files in `verifier/communities/`. Each file is named `<community_id>.json`.
+## 4. Communities
 
 ### `GET /communities`
-
-Returns all registered communities.
-
-**Response:**
-```json
-[
-  {
-    "community_id": "my-community",
-    "name": "My Community",
-    "description": "...",
-    "logo": "https://...",
-    "credential_type": 1,
-    "credential_expiry_days": 30,
-    "requirement_groups": [...],
-    "polls": [...],
-    "creator": "0x1234..."
-  }
-]
-```
-
----
+List all communities (includes `polls` array).
 
 ### `GET /communities/:id`
+Single community by ID. `404` if not found.
 
-Returns a single community config by ID.
+### `POST /pin/community`
+Pin community metadata to IPFS before on-chain tx. Returns `{ "cid": "..." }`.
 
-**404** if community not found.
+### `POST /communities/confirm`
+Persist community after `registerCommunity()` tx confirms.
+
+**Body:** Full `CommunityConfig` object.
+
+### `GET /verifier-address`
+Returns `{ "address": "0x..." }` — the verifier's EVM address for contract registration check.
 
 ---
 
-### `POST /communities`
+## 5. Polls
 
-Registers a new community. Called by the frontend after the `registerCommunity` on-chain transaction confirms.
+### `POST /pin/poll`
+Pin poll metadata to IPFS. Returns `{ "cid": "..." }`.
+
+### `POST /polls/confirm`
+Persist poll after `createPoll()` / `createHierarchicalPoll()` tx confirms.
 
 **Body:**
 ```json
 {
-  "community_id": "my-community",
-  "name": "My Community",
-  "description": "...",
-  "logo": "https://...",
-  "credential_type": 1,
-  "credential_expiry_days": 30,
-  "requirement_groups": [
-    {
-      "id": "uuid",
-      "logic": "AND",
-      "requirements": [
-        { "id": "uuid", "type": "FREE", "params": {} }
-      ]
-    }
-  ],
-  "creator": "0x1234..."
-}
-```
-
-**What it does:**
-1. Saves config to `communities/<community_id>.json`
-2. Pins config JSON to IPFS via Pinata (if configured)
-
-**Response:**
-```json
-{ "community_id": "my-community", "ipfs_cid": "bafkrei..." }
-```
-
----
-
-### `POST /communities/:id/polls`
-
-Registers a poll under a community. Called after the `createPoll` on-chain transaction confirms.
-
-**Body:**
-```json
-{
-  "poll_id": "0x1234...",
-  "title": "What should we build next?",
-  "description": "Optional context",
-  "required_credential_type": 1,
-  "created_at_block": 21000000,
-  "end_block": 21050000,
-  "poll_type": "flat",
-  "creator_address": "0x1234...",
+  "poll_id": "0x...",
+  "community_id": "0x...",
+  "title": "...",
+  "poll_type": "flat | hierarchical",
   "options": [
-    { "option_id": 0, "label": "Option A", "parent_option_id": 0, "child_count": 0 },
-    { "option_id": 1, "label": "Option B", "parent_option_id": 0, "child_count": 0 }
-  ]
+    { "option_id": 1, "label": "...", "parent_option_id": 0, "child_count": 2 }
+  ],
+  "end_block": 10800000,
+  "creator_address": "0x..."
 }
 ```
-
-**What it does:**
-1. Validates `creator_address` matches `community.creator` — returns `403` if not the creator
-2. Pins poll metadata to IPFS (if configured)
-3. Appends poll to community's `polls` array and saves
-
-**Response:**
-```json
-{ "poll_id": "0x1234...", "ipfs_cid": "bafkrei..." }
-```
-
-**Error responses:**
-- `400` — missing `creator_address`
-- `403` — caller is not the community creator
-- `404` — community not found
-
----
 
 ### `DELETE /communities/:id/polls/:pollId`
-
-Removes a poll from a community. Requires `x-admin-secret` header.
-
-**Response:**
-```json
-{ "ok": true, "removed": "<pollId>" }
-```
+Remove poll (requires `x-admin-secret` header).
 
 ---
 
-## 8. Polls
+## 6. Posts (Wave 4)
 
-### `GET /polls/:id/vote-count`
-
-Returns the current vote count for a poll (reads from verifier's tracked submissions).
-
-**Response:**
-```json
-{ "poll_id": "0x1234...", "total_votes": 2 }
-```
-
----
-
-## 9. Requirement Verification
-
-The verifier checks requirements off-chain before the user's wallet calls `issueCredential` on-chain.
-
-### Supported Requirement Types
-
-| Type | What it checks | Connected account needed |
-|---|---|---|
-| `FREE` | Always passes | None |
-| `ALLOWLIST` | Address in allowlist | EVM wallet |
-| `TOKEN_BALANCE` | ERC-20 balance ≥ min | EVM wallet |
-| `NFT_OWNERSHIP` | ERC-721 ownership | EVM wallet |
-| `ONCHAIN_ACTIVITY` | Tx count ≥ min | EVM wallet |
-| `DOMAIN_OWNERSHIP` | ENS domain ownership | EVM wallet |
-| `X_FOLLOW` | Follows a Twitter handle | Twitter OAuth |
-| `DISCORD_MEMBER` | Member of a Discord server | Discord OAuth |
-| `DISCORD_ROLE` | Has a specific Discord role | Discord OAuth |
-| `GITHUB_ACCOUNT` | Repos, followers, org, starred repo, commits | GitHub OAuth |
-| `TELEGRAM_MEMBER` | Member of a Telegram channel | Telegram Login |
-
----
-
-### `POST /verify/check`
-
-Checks requirements without issuing a credential. Use to show requirement status in the UI.
+### `POST /pin/post`
+Pin post content to IPFS before on-chain tx.
 
 **Body:**
 ```json
 {
-  "communityId": "my-community",
-  "evmAddress": "0x1234...",
+  "post_id": "0x...",
+  "community_id": "0x...",
+  "author": "0x...",
+  "title": "...",
+  "body": "markdown content",
+  "content_hash": "0x..."
+}
+```
+Returns `{ "cid": "..." }`.
+
+### `POST /posts/confirm`
+Persist post after `createPost()` tx confirms. Same body as above.
+
+### `GET /communities/:id/posts`
+List all posts for a community. Returns `PostMetadata[]`.
+
+### `GET /posts/:postId`
+Single post. `404` if not found.
+
+---
+
+## 7. Quests (Wave 4)
+
+### `POST /pin/quest`
+Pin quest metadata to IPFS.
+
+**Body:**
+```json
+{
+  "quest_id": "0x...",
+  "community_id": "0x...",
+  "title": "Vote in 5 polls",
+  "description": "...",
+  "quest_type": "VOTE_COUNT | REFERRAL_COUNT | CREDENTIAL_AGE",
+  "target": 5,
+  "reward_description": "OG Badge",
+  "reward_hash": "0x...",
+  "expiry_block": 10900000
+}
+```
+Returns `{ "cid": "..." }`.
+
+### `POST /quests/confirm`
+Persist quest after `createQuest()` tx confirms.
+
+### `GET /communities/:id/quests`
+List all quests for a community. Returns `QuestInfo[]`.
+
+### `GET /quests/:questId`
+Single quest. `404` if not found.
+
+### `GET /quests/:questId/progress/:address`
+Get participant's off-chain progress.
+
+**Response:**
+```json
+{ "quest_id": "0x...", "participant": "0x...", "progress": 3, "completed": false }
+```
+
+### `POST /quests/:questId/progress`
+Update off-chain progress (admin only — requires `x-admin-secret` header).
+
+**Body:** `{ "participant": "0x...", "progress": 3, "completed": false }`
+
+---
+
+## 8. Requirement Verification
+
+### `POST /verify/check`
+Check requirements without issuing a credential.
+
+**Body:**
+```json
+{
+  "communityId": "0x...",
+  "evmAddress": "0x...",
   "connectedAccounts": [
-    { "type": "EVM_WALLET", "identifier": "0x1234..." },
+    { "type": "EVM_WALLET", "identifier": "0x..." },
     { "type": "GITHUB", "identifier": "octocat" }
   ]
 }
@@ -359,17 +211,8 @@ Checks requirements without issuing a credential. Use to show requirement status
 }
 ```
 
-**Logic:**
-- Evaluates each `RequirementGroup` with its `AND`/`OR` logic
-- Overall `passed` = all groups pass
-
----
-
-### `POST /verify/attest`
-
-Verifies requirements and returns an EIP-712 signed attestation. The user's wallet submits this attestation to `issueCredential()` on-chain.
-
-**Body:** Same as `/verify/check`
+### `POST /verify/credential-params`
+Verify requirements and return EIP-712 attestation for `issueCredential()`.
 
 **Response (passed):**
 ```json
@@ -377,66 +220,63 @@ Verifies requirements and returns an EIP-712 signed attestation. The user's wall
   "passed": true,
   "results": [...],
   "attestation": {
+    "recipient": "0x...",
     "communityId": "0x...",
-    "credentialType": 1,
-    "votingWeight": 15,
-    "expiryBlock": 21200000,
-    "issuedAt": 21000000,
-    "signature": "0xabc..."
-  }
+    "nullifier": "0x...",
+    "credType": 1,
+    "votingWeight": "1000000",
+    "expiryBlock": 10900000,
+    "issuedAt": 10800000,
+    "nonce": "1234567890"
+  },
+  "signature": "0x..."
 }
 ```
 
-**Response (failed):**
-```json
-{ "error": "Requirements not met", "results": [...] }
-```
+### Supported requirement types
 
-**How `votingWeight` is computed:**
-Each passing requirement contributes its `vote_weight` param (or a default based on type). The total is the sum of all passing requirement weights — this becomes the voter's `EV` (Eligible Votes).
+| Type | Checks | Auth |
+|---|---|---|
+| `FREE` | Always passes | None |
+| `ALLOWLIST` | Address in list | EVM wallet |
+| `TOKEN_BALANCE` | ERC-20 balance ≥ min | Alchemy RPC |
+| `NFT_OWNERSHIP` | ERC-721 ownership | Alchemy RPC |
+| `ONCHAIN_ACTIVITY` | Tx count ≥ min | Alchemy RPC |
+| `DOMAIN_OWNERSHIP` | ENS domain | ENS resolution |
+| `X_FOLLOW` | Follows a handle | Twitter OAuth |
+| `DISCORD_MEMBER` | Server member | Discord OAuth |
+| `DISCORD_ROLE` | Has role | Discord bot |
+| `GITHUB_ACCOUNT` | Repos/followers/org/commits/starred | GitHub OAuth |
+| `TELEGRAM_MEMBER` | Channel member | Telegram widget |
 
 ---
 
-## 10. Tally
+## 9. Tally
 
 ### `POST /admin/tally/:pollId`
+Manually trigger full FHE tally flow. Requires `x-admin-secret` header.
 
-Manually triggers the full FHE tally flow for a poll. Requires `x-admin-secret` header.
+**Response:** `{ "ok": true, "pollId": "0x..." }`
 
-**Headers:**
-```
-x-admin-secret: <ADMIN_SECRET>
-```
+**Tally flow:**
+1. Check `VoteCast` events — skip if no votes (avoids `FHE.allowPublic` revert on zero handle)
+2. Call `requestTallyReveal()` — `FHE.allowPublic` per non-zero option (15s delay to ensure `block.number > endBlock`)
+3. For each option: `decryptForTx(ctHash).withoutPermit().execute()` → `{ decryptedValue, signature }`
+4. Call `publishTallyResult(pollId, optionId, plaintext, signature)` — verifies Threshold Network signature on-chain
 
-**Response:**
-```json
-{ "ok": true, "pollId": "0x..." }
-```
-
-**How the tally flow works:**
-
-1. **`requestTallyReveal()`** — calls the contract to set `tallyRevealed = true`, store ctHashes in `tallyCtHashes[pollId][i]`, and call `FHE.allowPublic` + `FHE.decrypt` for each option.
-
-2. **`decryptForTx(ctHash)`** — for each option, calls the CoFHE Threshold Network via `@cofhe/sdk` to get `{ decryptedValue, signature }`. The signature proves the Threshold Network computed the correct plaintext.
-
-3. **`publishTallyResult(pollId, optionId, plaintext, signature)`** — calls the contract which verifies the Threshold Network's signature via `FHE.publishDecryptResult`, then writes the plaintext to `revealedTallies[pollId][optionId]`.
-
-The flow is idempotent — options already published are skipped.
-
----
+Options with zero votes (no submissions) are published as `0` directly without FHE decryption.
 
 ### Automated Tally Runner
+Starts on boot. Every 60 seconds:
+- Reads all communities and polls
+- Skips polls not found on current contract (old contract data)
+- Skips polls with `l1Block <= endBlock + 2` (buffer to avoid boundary race)
+- Runs `runTallyForPoll` for ended, unrevealed polls with votes
 
-The tally runner starts automatically on server boot. Every 60 seconds it:
-
-1. Reads all communities and their polls
-2. Gets the current L1 block number (Arbitrum Sepolia block headers carry `l1BlockNumber`)
-3. For each ended poll (`l1Block > endBlock`) that hasn't been fully tallied: calls `runTallyForPoll(pollId)`
-4. Marks completed polls in-memory to skip them on future iterations
-
-**To disable:** Remove `FHENIX_CONTRACT_ADDRESS` or `VERIFIER_PRIVATE_KEY` from `.env` — the runner logs a warning and exits cleanly.
-
-> **Note:** `requestTallyReveal` on-chain requires `msg.sender` to be the poll creator. The automated runner can only reveal tallies for polls created by the wallet corresponding to `VERIFIER_PRIVATE_KEY`. For polls created by other wallets, the poll creator must trigger reveal from the Results page in the frontend.
+### Automated Quest Runner
+Starts on boot. Every 120 seconds:
+- For `VOTE_COUNT` quests: scans `VoteCast` events, encrypts progress increments, calls `recordQuestProgress` on-chain
+- After recording, calls `requestProgressReveal` + `publishProgressResult` for participants near completion
 
 ---
 
@@ -444,12 +284,10 @@ The tally runner starts automatically on server boot. Every 60 seconds it:
 
 | HTTP | Meaning |
 |---|---|
-| 400 | Missing required fields or invalid input |
-| 403 | Requirements not met or unauthorized |
-| 404 | Community or poll not found |
+| 400 | Missing required fields |
+| 401 | Missing or invalid `x-admin-secret` |
+| 403 | Requirements not met or not community creator |
+| 404 | Resource not found |
 | 500 | Internal error (RPC, IPFS, Threshold Network) |
 
-All errors return:
-```json
-{ "error": "Human-readable message", "detail": "Optional technical detail" }
-```
+All errors: `{ "error": "message", "detail": "optional" }`
