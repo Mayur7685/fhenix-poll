@@ -150,7 +150,7 @@ export default function PollDetail() {
         // Use on-chain endBlock as source of truth; fall back to local only if no on-chain data
         end_block:                onChainPoll?.exists ? Number(onChainPoll.endBlock) : backendPoll?.end_block,
         options,
-        poll_type:                backendPoll?.poll_type ?? 'flat',
+        poll_type:                (onChainPoll?.isHierarchical || backendPoll?.poll_type === 'hierarchical') ? 'hierarchical' : 'flat',
       })
 
       setCommunity(community ?? null)
@@ -178,7 +178,7 @@ export default function PollDetail() {
     const submissionData = {
       pollId:  pollId!,
       ranking,
-      options: poll.options.map(o => ({ id: o.option_id, label: o.label })),
+      options: poll.options.map(o => ({ id: o.option_id, label: o.label, parentId: o.parent_option_id })),
       votedAt,
     }
     // 1. localStorage cache
@@ -533,13 +533,13 @@ export default function PollDetail() {
                   </button>
                   <button
                     onClick={() => setShowConfirm(true)}
-                    disabled={!hasRanked || status === 'signing' || status === 'confirming'}
+                    disabled={!hasRanked || status === 'encrypting' || status === 'signing' || status === 'confirming'}
                     className="flex-1 py-3 bg-[#0070F3] hover:bg-blue-600 text-white font-medium rounded-xl text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {(status === 'signing' || status === 'confirming') && (
+                    {(status === 'encrypting' || status === 'signing' || status === 'confirming') && (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    {status === 'signing' ? 'Waiting for wallet…' : status === 'confirming' ? 'Confirming…' : 'Submit Vote'}
+                    {status === 'encrypting' ? 'Encrypting…' : status === 'signing' ? 'Waiting for wallet…' : status === 'confirming' ? 'Confirming…' : 'Submit Vote'}
                   </button>
                 </div>
               </div>
@@ -551,7 +551,7 @@ export default function PollDetail() {
       {showConfirm && poll && (
         <VoteConfirmModal
           ranking={ranking}
-          options={layerOptions}
+          options={poll.options}
           submitting={status === 'signing'}
           onConfirm={() => void handleConfirmVote()}
           onCancel={() => setShowConfirm(false)}

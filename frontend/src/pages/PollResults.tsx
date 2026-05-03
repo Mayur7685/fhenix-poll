@@ -6,45 +6,114 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useCofheWriteContract, useCofheClient } from '@cofhe/react'
+import { useWriteContract } from '../hooks/useWriteContract'
 import { useConnection } from 'wagmi'
 import { arbitrumSepolia } from '../lib/chains'
-import { getPoll, getRevealedTally, getTallyCtHash, getBlockHeight, publicClient } from '../lib/fhenix'
+import { getPoll, getRevealedTally, getRolledUpTally, getTallyCtHash, getBlockHeight, publicClient } from '../lib/fhenix'
 import { getGasFees, estimateRequestTallyRevealGas, estimatePublishTallyResultGas } from '../lib/gas'
 import { getCommunityById } from '../lib/verifier'
 import { FHENIX_POLL_ABI, CONTRACT_ADDRESS } from '../lib/abi'
 import type { CommunityConfig, PollInfo } from '../types'
 
-interface TallyEntry { optionId: number; label: string; count: bigint }
+interface TallyEntry { optionId: number; label: string; count: bigint; rolledUp?: bigint; parentId?: number }
+
+function TallyTree({ entries, parentId = 0, maxCount, isHierarchical, depth = 0 }: {
+  entries: TallyEntry[]
+  parentId?: number
+  maxCount: number
+  isHierarchical: boolean
+  depth?: number
+}) {
+  if (depth > 5) return null  // safety guard against infinite recursion
+  const children = entries.filter(e => (e.parentId ?? 0) === parentId)
+  if (children.length === 0) return null
+
+  // Sort by display value desc
+  const sorted = [...children].sort((a, b) => {
+    const va = Number((isHierarchical && a.rolledUp && a.rolledUp > 0n) ? a.rolledUp : a.count)
+    const vb = Number((isHierarchical && b.rolledUp && b.rolledUp > 0n) ? b.rolledUp : b.count)
+    return vb - va
+  })
+
+  const colors = ['#10B981', '#0070F3', '#6366f1', '#f59e0b', '#9ca3af']
+
+  return (
+    <div className={depth > 0 ? 'ml-4 border-l border-gray-100 pl-3 mt-2 space-y-2' : 'space-y-3'}>
+      {sorted.map((entry, idx) => {
+        const displayCount = (isHierarchical && entry.rolledUp && entry.rolledUp > 0n) ? entry.rolledUp : entry.count
+        const pct = maxCount > 0 ? (Number(displayCount) / maxCount) * 100 : 0
+        const color = colors[Math.min(idx, colors.length - 1)]
+        const isParent = isHierarchical && entry.rolledUp !== undefined && entry.rolledUp > entry.count
+        const hasChildren = isHierarchical && entries.some(e => e.parentId === entry.optionId)
+
+        return (
+          <div key={entry.optionId}>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 text-white"
+                    style={{ background: color }}>{idx + 1}</span>
+                  <span className="font-medium text-gray-900">{entry.label}</span>
+                  {isParent && (
+                    <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">subtotal</span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-400 font-mono tabular-nums">{displayCount.toLocaleString()}</span>
+                  {isParent && entry.count > 0n && (
+                    <div className="text-[10px] text-gray-300 font-mono">own: {entry.count.toLocaleString()}</div>
+                  )}
+                </div>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-8">
+                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+              </div>
+            </div>
+            {hasChildren && isHierarchical && (
+              <TallyTree entries={entries} parentId={entry.optionId}
+                maxCount={maxCount} isHierarchical={isHierarchical} depth={depth + 1} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function PollResults() {
   const { communityId, pollId } = useParams<{ communityId: string; pollId: string }>()
   const { address, isConnected } = useConnection()
-  const { writeContractAsync }   = useCofheWriteContract()
-  const cofheClient              = useCofheClient()
+  const { writeContractAsync }   = useWriteContract()
 
   const [community, setCommunity]   = useState<CommunityConfig | null>(null)
   const [backendPoll, setBackendPoll] = useState<PollInfo | null>(null)
   const [tallyRevealed, setTallyRevealed] = useState(false)
   const [optionCount, setOptionCount]     = useState(0)
+  const [isHierarchical, setIsHierarchical] = useState(false)
   const [pollCreator, setPollCreator]     = useState<string | null>(null)
   const [pollClosed, setPollClosed]       = useState(false)
   const [tally, setTally]                 = useState<TallyEntry[]>([])
-  const [loading, setLoading]             = useState(true)
+  const [loading, setLoading]             = useState(false)
   const [revealStatus, setRevealStatus]   = useState<'idle' | 'requesting' | 'publishing' | 'done' | 'error'>('idle')
   const [revealError, setRevealError]     = useState<string | null>(null)
   const [publishProgress, setPublishProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 })
 
   useEffect(() => {
+    console.log('[PollResults] effect fired, pollId=', pollId, 'communityId=', communityId)
     if (!pollId || !communityId) return
-    setLoading(true)
+    if (tally.length === 0) setLoading(true)
+
+    const timeout = (ms: number) => new Promise<null>(r => setTimeout(() => r(null), ms))
+
     Promise.all([
       getPoll(pollId as `0x${string}`).catch(() => null),
-      getCommunityById(communityId),
+      Promise.race([getCommunityById(communityId).catch(() => null), timeout(5000)]),
     ]).then(async ([onChainPoll, comm]) => {
-      setCommunity(comm)
+      console.log('[PollResults] data loaded', { exists: onChainPoll?.exists, tallyRevealed: onChainPoll?.tallyRevealed })
+
+      setCommunity(comm as typeof comm)
       if (comm) {
-        const bp = comm.polls?.find(p => p.poll_id === pollId)
+        const bp = (comm as NonNullable<typeof comm>).polls?.find(p => p.poll_id === pollId)
         setBackendPoll(bp ?? null)
       }
 
@@ -52,29 +121,46 @@ export default function PollResults() {
         setOptionCount(onChainPoll.optionCount)
         setPollCreator(onChainPoll.creator)
         setTallyRevealed(onChainPoll.tallyRevealed)
+        setIsHierarchical(onChainPoll.isHierarchical)
 
+        console.log('[PollResults] getting block height...')
         const currentBlock = await getBlockHeight()
+        console.log('[PollResults] block height', currentBlock)
         setPollClosed(currentBlock > onChainPoll.endBlock)
 
         if (onChainPoll.tallyRevealed && onChainPoll.optionCount > 0) {
-          const entries: TallyEntry[] = await Promise.all(
+          const backendOptions = (comm as any)?.polls?.find((p: any) => p.poll_id === pollId)?.options ?? []
+          console.log('[PollResults] fetching tallies, optionCount=', onChainPoll.optionCount)
+
+          // Fetch all tallies in parallel
+          const results = await Promise.all(
             Array.from({ length: onChainPoll.optionCount }, async (_, i) => {
-              // Contract stores tallies 0-indexed
-              const count = await getRevealedTally(pollId as `0x${string}`, i).catch(() => 0n)
-              const option = comm?.polls
-                ?.find(p => p.poll_id === pollId)
-                ?.options.find(o => o.option_id === i + 1)
+              const optId = i + 1
+              const [count, rolledUp] = await Promise.all([
+                getRevealedTally(pollId as `0x${string}`, i).catch(() => 0n),
+                onChainPoll.isHierarchical
+                  ? getRolledUpTally(pollId as `0x${string}`, i).catch(() => 0n)
+                  : Promise.resolve(undefined),
+              ])
+              const opt = backendOptions.find((o: any) => o.option_id === optId)
               return {
-                optionId: i,
-                label:    option?.label ?? `Option ${i + 1}`,
+                optionId: optId,  // 1-based to match parent_option_id references
+                label:    opt?.label ?? `Option ${optId}`,
                 count:    BigInt(count),
-              }
+                rolledUp: rolledUp !== undefined ? BigInt(rolledUp) : undefined,
+                parentId: opt?.parent_option_id,
+              } as TallyEntry
             })
           )
-          setTally(entries.sort((a, b) => (b.count > a.count ? 1 : -1)))
+
+          setTally(results.sort((a, b) => (b.count > a.count ? 1 : -1)))
+          console.log('[PollResults] tally set', results.length, 'entries')
         }
       }
-    }).finally(() => setLoading(false))
+    }).catch(console.error).finally(() => {
+      console.log('[PollResults] loading done, setting loading=false')
+      setLoading(false)
+    })
   }, [pollId, communityId])
 
   const handleReveal = async () => {
@@ -108,6 +194,7 @@ export default function PollResults() {
         const ctHash = await getTallyCtHash(pollId as `0x${string}`, i)
 
         // Ask Threshold Network to sign the decryption (no permit needed — FHE.allowPublic was called)
+        const { cofheClient } = await import('../lib/cofhe')
         const { decryptedValue, signature } = await cofheClient
           .decryptForTx(ctHash)
           .withoutPermit()
@@ -141,12 +228,18 @@ export default function PollResults() {
     }
   }
 
-  const maxCount = tally.length > 0 ? Number(tally[0].count) : 1
+  const maxCount = tally.length > 0
+    ? Number(tally.reduce((max, e) => {
+        const v = (isHierarchical && e.rolledUp !== undefined && e.rolledUp > 0n) ? e.rolledUp : e.count
+        return v > max ? v : max
+      }, 0n))
+    : 1
   const isCreator = isConnected && address?.toLowerCase() === pollCreator?.toLowerCase()
   const title = backendPoll?.title ?? pollId?.slice(0, 10) + '…'
 
   // Check if tally is revealed but results not yet published
   const allPublished = tally.length > 0 && tally.every(e => e.count > 0n)
+  console.log('[PollResults] render: loading=', loading, 'tallyRevealed=', tallyRevealed, 'tally.length=', tally.length)
 
   return (
     <div className="max-w-lg mx-auto w-full">
@@ -193,30 +286,15 @@ export default function PollResults() {
                 <h2 className="text-sm font-semibold text-gray-900">FHE-Decrypted Tally</h2>
                 <p className="text-xs text-gray-400 mt-0.5">Ranked-choice vote weights · aggregate only</p>
               </div>
-              <div className="p-5 space-y-3">
-                {tally.map((entry, idx) => {
-                  const pct = maxCount > 0 ? (Number(entry.count) / maxCount) * 100 : 0
-                  const color = idx === 0 ? '#10B981' : idx === 1 ? '#0070F3' : '#9ca3af'
-                  return (
-                    <div key={entry.optionId} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 text-white"
-                            style={{ background: color }}>
-                            {idx + 1}
-                          </span>
-                          <span className="font-medium text-gray-900">{entry.label}</span>
-                        </div>
-                        <span className="text-xs text-gray-400 font-mono tabular-nums">
-                          {entry.count.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden ml-8">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="p-5">
+                {(() => {
+                  try {
+                    return <TallyTree entries={tally} maxCount={maxCount} isHierarchical={isHierarchical} />
+                  } catch (e) {
+                    console.error('[TallyTree] render error', e)
+                    return <pre className="text-xs text-red-500">{String(e)}</pre>
+                  }
+                })()}
               </div>
               <div className="bg-[#0070F3] text-white px-5 py-3.5 text-sm font-medium">
                 FHE decryption by the Fhenix network. Individual votes were never revealed.

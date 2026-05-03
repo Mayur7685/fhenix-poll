@@ -105,8 +105,31 @@ export async function getPoll(pollId: `0x${string}`) {
   }) as Promise<{
     id: `0x${string}`; communityId: `0x${string}`; creator: `0x${string}`;
     credType: number; startBlock: number; endBlock: number;
-    optionCount: number; tallyRevealed: boolean; exists: boolean
+    optionCount: number; tallyRevealed: boolean; exists: boolean;
+    isHierarchical: boolean
   }>
+}
+
+export async function getPollOption(pollId: `0x${string}`, optionId: number) {
+  return readContract({
+    address: CONTRACT_ADDRESS,
+    abi:     FHENIX_POLL_ABI,
+    functionName: 'getPollOption',
+    args:    [pollId, optionId],
+  }) as Promise<{
+    optionId: number; parentId: number; childCount: number;
+    labelHash: `0x${string}`; exists: boolean
+  }>
+}
+
+export async function getRolledUpTally(pollId: `0x${string}`, optionId: number): Promise<bigint> {
+  const result = await readContract({
+    address: CONTRACT_ADDRESS,
+    abi:     FHENIX_POLL_ABI,
+    functionName: 'rolledUpTallies',
+    args:    [pollId, optionId],
+  })
+  return BigInt(result as number)
 }
 
 export async function hasVoted(pollId: `0x${string}`, voter: `0x${string}`): Promise<boolean> {

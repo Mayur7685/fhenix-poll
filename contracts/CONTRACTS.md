@@ -2,7 +2,7 @@
 
 **Contract:** `FhenixPoll.sol`  
 **Network:** Arbitrum Sepolia (Chain ID: `421614`)  
-**Deployed address:** `0xd9836FA54D71c2745A26dABa48551E9745983676`  
+**Deployed address:** `0xEa981A70917Fcfba71B0EfD743b7EC0b8Eaf56F4`  
 **Solidity:** `^0.8.28` (EVM version: Cancun)  
 **Framework:** Hardhat + `@cofhe/hardhat-plugin`
 

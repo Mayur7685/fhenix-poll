@@ -1,5 +1,5 @@
 {
-  "address": "0xd9836FA54D71c2745A26dABa48551E9745983676",
+  "address": "0x9dC0044FdB877F1F017D5853150b0B9725b26397",
   "abi": [
     {
       "inputs": [
@@ -155,6 +155,88 @@
         }
       ],
       "name": "PollCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "postId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        }
+      ],
+      "name": "PostCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "participant",
+          "type": "address"
+        }
+      ],
+      "name": "QuestCompleted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "QuestCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "participant",
+          "type": "address"
+        }
+      ],
+      "name": "QuestProgressUpdated",
       "type": "event"
     },
     {
@@ -325,9 +407,113 @@
           "internalType": "uint8",
           "name": "optionCount",
           "type": "uint8"
+        },
+        {
+          "internalType": "uint8[]",
+          "name": "parentIds",
+          "type": "uint8[]"
+        },
+        {
+          "internalType": "bytes32[]",
+          "name": "labelHashes",
+          "type": "bytes32[]"
+        }
+      ],
+      "name": "createHierarchicalPoll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "pollId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint8",
+          "name": "credType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint32",
+          "name": "durationBlocks",
+          "type": "uint32"
+        },
+        {
+          "internalType": "uint8",
+          "name": "optionCount",
+          "type": "uint8"
         }
       ],
       "name": "createPoll",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "postId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "contentHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "createPost",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "enum FhenixPoll.QuestType",
+          "name": "questType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint32",
+          "name": "target",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "rewardHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "expiryBlock",
+          "type": "uint32"
+        }
+      ],
+      "name": "createQuest",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -478,6 +664,44 @@
     {
       "inputs": [
         {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getCommunityPostIds",
+      "outputs": [
+        {
+          "internalType": "bytes32[]",
+          "name": "",
+          "type": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getCommunityQuestIds",
+      "outputs": [
+        {
+          "internalType": "bytes32[]",
+          "name": "",
+          "type": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "holder",
           "type": "address"
@@ -592,9 +816,177 @@
               "internalType": "bool",
               "name": "exists",
               "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "isHierarchical",
+              "type": "bool"
             }
           ],
           "internalType": "struct FhenixPoll.Poll",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "pollId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint8",
+          "name": "optionId",
+          "type": "uint8"
+        }
+      ],
+      "name": "getPollOption",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint8",
+              "name": "optionId",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "parentId",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "childCount",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "labelHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bool",
+              "name": "exists",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct FhenixPoll.PollOption",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "postId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getPost",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "communityId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "author",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "contentHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "createdAt",
+              "type": "uint32"
+            },
+            {
+              "internalType": "bool",
+              "name": "exists",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct FhenixPoll.Post",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getQuest",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "communityId",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "address",
+              "name": "creator",
+              "type": "address"
+            },
+            {
+              "internalType": "enum FhenixPoll.QuestType",
+              "name": "questType",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32",
+              "name": "target",
+              "type": "uint32"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "rewardHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "expiryBlock",
+              "type": "uint32"
+            },
+            {
+              "internalType": "bool",
+              "name": "exists",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct FhenixPoll.Quest",
           "name": "",
           "type": "tuple"
         }
@@ -716,6 +1108,50 @@
           "internalType": "bytes32",
           "name": "",
           "type": "bytes32"
+        },
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "name": "pollOptions",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "optionId",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "parentId",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint8",
+          "name": "childCount",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "labelHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bool",
+          "name": "exists",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
         }
       ],
       "name": "polls",
@@ -764,9 +1200,86 @@
           "internalType": "bool",
           "name": "exists",
           "type": "bool"
+        },
+        {
+          "internalType": "bool",
+          "name": "isHierarchical",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "posts",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "createdAt",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bool",
+          "name": "exists",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "participant",
+          "type": "address"
+        },
+        {
+          "internalType": "uint32",
+          "name": "plaintext",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "signature",
+          "type": "bytes"
+        }
+      ],
+      "name": "publishProgressResult",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -801,6 +1314,153 @@
       "inputs": [
         {
           "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "questCompleted",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "questProgressCtHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "quests",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "id",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "communityId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "internalType": "enum FhenixPoll.QuestType",
+          "name": "questType",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint32",
+          "name": "target",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "rewardHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint32",
+          "name": "expiryBlock",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bool",
+          "name": "exists",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "participant",
+          "type": "address"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "ctHash",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint8",
+              "name": "securityZone",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "utype",
+              "type": "uint8"
+            },
+            {
+              "internalType": "bytes",
+              "name": "signature",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct InEuint32",
+          "name": "encProgress",
+          "type": "tuple"
+        }
+      ],
+      "name": "recordQuestProgress",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
           "name": "communityId",
           "type": "bytes32"
         },
@@ -816,6 +1476,24 @@
         }
       ],
       "name": "registerCommunity",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "questId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "participant",
+          "type": "address"
+        }
+      ],
+      "name": "requestProgressReveal",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -847,6 +1525,30 @@
         }
       ],
       "name": "revealedTallies",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "",
+          "type": "uint32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "name": "rolledUpTallies",
       "outputs": [
         {
           "internalType": "uint32",
@@ -934,5 +1636,5 @@
     }
   ],
   "network": "arbitrumSepolia",
-  "deployedAt": "2026-04-17T11:31:58.156Z"
+  "deployedAt": "2026-05-03T13:18:24.112Z"
 }

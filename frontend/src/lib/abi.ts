@@ -49,21 +49,64 @@ export const FHENIX_POLL_ABI = [
     outputs: [],
     stateMutability: 'nonpayable',
   },
+  // Wave 3: hierarchical poll
+  {
+    type: 'function', name: 'createHierarchicalPoll',
+    inputs: [
+      { name: 'pollId',         type: 'bytes32'   },
+      { name: 'communityId',    type: 'bytes32'   },
+      { name: 'credType',       type: 'uint8'     },
+      { name: 'durationBlocks', type: 'uint32'    },
+      { name: 'optionCount',    type: 'uint8'     },
+      { name: 'parentIds',      type: 'uint8[]'   },
+      { name: 'labelHashes',    type: 'bytes32[]' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function', name: 'getPollOption',
+    inputs: [
+      { name: 'pollId',   type: 'bytes32' },
+      { name: 'optionId', type: 'uint8'   },
+    ],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'optionId',   type: 'uint8'   },
+        { name: 'parentId',   type: 'uint8'   },
+        { name: 'childCount', type: 'uint8'   },
+        { name: 'labelHash',  type: 'bytes32' },
+        { name: 'exists',     type: 'bool'    },
+      ],
+    }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function', name: 'rolledUpTallies',
+    inputs: [
+      { name: 'pollId',   type: 'bytes32' },
+      { name: 'optionId', type: 'uint8'   },
+    ],
+    outputs: [{ type: 'uint32' }],
+    stateMutability: 'view',
+  },
   {
     type: 'function', name: 'getPoll',
     inputs: [{ name: 'pollId', type: 'bytes32' }],
     outputs: [{
       type: 'tuple',
       components: [
-        { name: 'id',            type: 'bytes32' },
-        { name: 'communityId',   type: 'bytes32' },
-        { name: 'creator',       type: 'address' },
-        { name: 'credType',      type: 'uint8'   },
-        { name: 'startBlock',    type: 'uint32'  },
-        { name: 'endBlock',      type: 'uint32'  },
-        { name: 'optionCount',   type: 'uint8'   },
-        { name: 'tallyRevealed', type: 'bool'    },
-        { name: 'exists',        type: 'bool'    },
+        { name: 'id',              type: 'bytes32' },
+        { name: 'communityId',     type: 'bytes32' },
+        { name: 'creator',         type: 'address' },
+        { name: 'credType',        type: 'uint8'   },
+        { name: 'startBlock',      type: 'uint32'  },
+        { name: 'endBlock',        type: 'uint32'  },
+        { name: 'optionCount',     type: 'uint8'   },
+        { name: 'tallyRevealed',   type: 'bool'    },
+        { name: 'exists',          type: 'bool'    },
+        { name: 'isHierarchical',  type: 'bool'    },
       ],
     }],
     stateMutability: 'view',
@@ -182,6 +225,115 @@ export const FHENIX_POLL_ABI = [
     outputs: [{ type: 'address' }],
     stateMutability: 'view',
   },
+  // Wave 4: Posts
+  {
+    type: 'function', name: 'createPost',
+    inputs: [
+      { name: 'postId',      type: 'bytes32' },
+      { name: 'communityId', type: 'bytes32' },
+      { name: 'contentHash', type: 'bytes32' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function', name: 'getPost',
+    inputs: [{ name: 'postId', type: 'bytes32' }],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'id',          type: 'bytes32' },
+        { name: 'communityId', type: 'bytes32' },
+        { name: 'author',      type: 'address' },
+        { name: 'contentHash', type: 'bytes32' },
+        { name: 'createdAt',   type: 'uint32'  },
+        { name: 'exists',      type: 'bool'    },
+      ],
+    }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function', name: 'getCommunityPostIds',
+    inputs: [{ name: 'communityId', type: 'bytes32' }],
+    outputs: [{ type: 'bytes32[]' }],
+    stateMutability: 'view',
+  },
+  // Wave 4: Quests
+  {
+    type: 'function', name: 'createQuest',
+    inputs: [
+      { name: 'questId',     type: 'bytes32' },
+      { name: 'communityId', type: 'bytes32' },
+      { name: 'questType',   type: 'uint8'   },
+      { name: 'target',      type: 'uint32'  },
+      { name: 'rewardHash',  type: 'bytes32' },
+      { name: 'expiryBlock', type: 'uint32'  },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function', name: 'getQuest',
+    inputs: [{ name: 'questId', type: 'bytes32' }],
+    outputs: [{
+      type: 'tuple',
+      components: [
+        { name: 'id',          type: 'bytes32' },
+        { name: 'communityId', type: 'bytes32' },
+        { name: 'creator',     type: 'address' },
+        { name: 'questType',   type: 'uint8'   },
+        { name: 'target',      type: 'uint32'  },
+        { name: 'rewardHash',  type: 'bytes32' },
+        { name: 'expiryBlock', type: 'uint32'  },
+        { name: 'exists',      type: 'bool'    },
+      ],
+    }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function', name: 'getCommunityQuestIds',
+    inputs: [{ name: 'communityId', type: 'bytes32' }],
+    outputs: [{ type: 'bytes32[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function', name: 'requestProgressReveal',
+    inputs: [
+      { name: 'questId',     type: 'bytes32' },
+      { name: 'participant', type: 'address' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function', name: 'publishProgressResult',
+    inputs: [
+      { name: 'questId',     type: 'bytes32' },
+      { name: 'participant', type: 'address' },
+      { name: 'plaintext',   type: 'uint32'  },
+      { name: 'signature',   type: 'bytes'   },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function', name: 'questCompleted',
+    inputs: [
+      { name: 'questId',     type: 'bytes32' },
+      { name: 'participant', type: 'address' },
+    ],
+    outputs: [{ type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function', name: 'questProgressCtHash',
+    inputs: [
+      { name: 'questId',     type: 'bytes32' },
+      { name: 'participant', type: 'address' },
+    ],
+    outputs: [{ type: 'bytes32' }],
+    stateMutability: 'view',
+  },
   // Events
   {
     type: 'event', name: 'CommunityRegistered',
@@ -226,6 +378,28 @@ export const FHENIX_POLL_ABI = [
       { name: 'recipient',   type: 'address', indexed: true },
       { name: 'communityId', type: 'bytes32', indexed: true },
       { name: 'nullifier',   type: 'bytes32', indexed: false },
+    ],
+  },
+  {
+    type: 'event', name: 'PostCreated',
+    inputs: [
+      { name: 'postId',      type: 'bytes32', indexed: true },
+      { name: 'communityId', type: 'bytes32', indexed: true },
+      { name: 'author',      type: 'address', indexed: true },
+    ],
+  },
+  {
+    type: 'event', name: 'QuestCreated',
+    inputs: [
+      { name: 'questId',     type: 'bytes32', indexed: true },
+      { name: 'communityId', type: 'bytes32', indexed: true },
+    ],
+  },
+  {
+    type: 'event', name: 'QuestCompleted',
+    inputs: [
+      { name: 'questId',     type: 'bytes32', indexed: true },
+      { name: 'participant', type: 'address', indexed: true },
     ],
   },
 ] as const

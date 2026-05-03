@@ -21,8 +21,8 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@cofhe/sdk'],  // WASM must not be pre-bundled
-    include: ['iframe-shared-storage'],  // CJS-only package — pre-bundle to ESM
+    exclude: ['@cofhe/sdk'],
+    include: ['tweetnacl', 'iframe-shared-storage'],
   },
   build: {
     target: 'esnext',

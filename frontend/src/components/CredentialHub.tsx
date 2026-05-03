@@ -2,7 +2,7 @@
 // Shows EV / VP% / CV numbers, decay bar, and credential issuance flow.
 
 import { useState, useEffect } from 'react'
-import { useCofheWriteContract } from '@cofhe/react'
+import { useWriteContract } from '../hooks/useWriteContract'
 import { useConnection } from 'wagmi'
 import { arbitrumSepolia } from '../lib/chains'
 import { getGasFees } from '../lib/gas'
@@ -99,7 +99,7 @@ interface Props { community: CommunityConfig }
 
 export default function CredentialHub({ community }: Props) {
   const { address, isConnected }  = useConnection()
-  const { writeContractAsync }    = useCofheWriteContract()
+  const { writeContractAsync }    = useWriteContract()
   const hub = useCredentialHub(community)
 
   const allReqs      = community.requirement_groups.flatMap(g => g.requirements)

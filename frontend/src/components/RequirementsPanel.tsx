@@ -2,7 +2,7 @@
 // eligibility off-chain, then submits the EIP-712 attestation on-chain.
 
 import { useState } from 'react'
-import { useCofheWriteContract } from '@cofhe/react'
+import { useWriteContract } from '../hooks/useWriteContract'
 import { useConnection } from 'wagmi'
 import { arbitrumSepolia } from '../lib/chains'
 import { getGasFees } from '../lib/gas'
@@ -46,7 +46,7 @@ export default function RequirementsPanel({
   onCredentialIssued,
 }: Props) {
   const { address } = useConnection()
-  const { writeContractAsync } = useCofheWriteContract()
+  const { writeContractAsync } = useWriteContract()
 
   const [results, setResults]     = useState<CheckResult[] | null>(null)
   const [verifying, setVerifying] = useState(false)

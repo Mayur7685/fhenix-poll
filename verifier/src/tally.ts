@@ -2,7 +2,7 @@
 //
 // Interacts with the FhenixPoll contract on Arbitrum Sepolia to:
 //   1. Detect polls that have ended (block.number > endBlock)
-//   2. Call requestTallyReveal() to trigger FHE.allowPublic + FHE.decrypt
+//   2. Call requestTallyReveal() to trigger FHE.allowPublic (grants public decrypt permission)
 //   3. For each option, call decryptForTx (Threshold Network signs the plaintext)
 //   4. Call publishTallyResult() to write verified plaintext into revealedTallies
 //
@@ -192,7 +192,7 @@ async function getRevealedTally(pollId: `0x${string}`, optionId: number): Promis
 
 // ─── Gas helper ───────────────────────────────────────────────────────────────
 
-async function getGasFees() {
+export async function getGasFees() {
   if (!_publicClient) throw new Error("clients not initialised")
   const block = await _publicClient.getBlock({ blockTag: "latest" })
   const baseFee = (block as any).baseFeePerGas ?? 100_000_000n
@@ -224,12 +224,33 @@ export async function runTallyForPoll(pollId: `0x${string}`): Promise<void> {
   // Step 1 — request reveal if not yet done
   if (!poll.tallyRevealed) {
     const l1Block = await getCurrentL1Block()
-    if (l1Block <= poll.endBlock) {
+    if (l1Block <= poll.endBlock + 2) {
       throw new Error(
         `Poll still open — endBlock=${poll.endBlock}, current L1=${l1Block}`,
       )
     }
+
+    // Skip polls with no votes — FHE.allowPublic on a zero handle reverts
+    // Use deployment block as fromBlock to avoid RPC range limits
+    const deployBlock = BigInt(process.env.DEPLOYMENT_L2_BLOCK ?? "265000000")
+    const voteLogs = await _publicClient.getLogs({
+      address: CONTRACT_ADDRESS,
+      event: { type: "event", name: "VoteCast", inputs: [
+        { name: "pollId", type: "bytes32", indexed: true },
+        { name: "voter",  type: "address", indexed: true },
+      ]},
+      args: { pollId },
+      fromBlock: deployBlock,
+      toBlock: "latest",
+    }).catch(() => [] as any[])
+    if (voteLogs.length === 0) {
+      console.log(`[tally] Poll ${pollId.slice(0, 12)}… has no votes — skipping reveal`)
+      return
+    }
+
     console.log(`[tally] Requesting reveal for ${pollId}…`)
+    // Wait one L1 block (~12s) to ensure block.number > endBlock at tx execution time
+    await new Promise(r => setTimeout(r, 15_000))
     const fees = await getGasFees()
     const hash = await writeContract({
       address: CONTRACT_ADDRESS,
@@ -254,7 +275,17 @@ export async function runTallyForPoll(pollId: `0x${string}`): Promise<void> {
 
     const ctHash = await getTallyCtHash(pollId, i)
     if (ctHash === 0n) {
-      console.warn(`[tally]   option ${i}: ctHash is zero — requestTallyReveal may not have run yet`)
+      // Option had no votes — contract skipped it in requestTallyReveal, publish 0 directly
+      console.log(`[tally]   option ${i}: no votes — publishing 0`)
+      const fees = await getGasFees()
+      const hash = await writeContract({
+        address: CONTRACT_ADDRESS,
+        abi:     TALLY_ABI,
+        functionName: "publishTallyResult",
+        args:    [pollId, i, 0, "0x"],
+        ...fees,
+      })
+      await _publicClient.waitForTransactionReceipt({ hash })
       continue
     }
 

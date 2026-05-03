@@ -1,6 +1,6 @@
 # ZKPoll — End-to-End Testing Guide
 
-**Contract:** `FhenixPoll.sol` on Arbitrum Sepolia (`0xd9836FA54D71c2745A26dABa48551E9745983676`)  
+**Contract:** `FhenixPoll.sol` on Arbitrum Sepolia (`0xb7d950264800EA297253EA583461E39168DDA8B5`)  
 **Note:** The live demo backend runs on Render free tier — first request after idle may take 30–60s to wake up. For instant response, run locally using this guide.
 
 ---
@@ -56,7 +56,7 @@ Minimum config for local testing:
 
 ```env
 # Deployed FhenixPoll contract on Arbitrum Sepolia
-FHENIX_CONTRACT_ADDRESS=0xd9836FA54D71c2745A26dABa48551E9745983676
+FHENIX_CONTRACT_ADDRESS=0xb7d950264800EA297253EA583461E39168DDA8B5
 FHENIX_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
 
 # EVM private key — signs EIP-712 attestations + submits tally transactions
@@ -98,7 +98,7 @@ cd ../frontend
 
 Create `.env`:
 ```env
-VITE_CONTRACT_ADDRESS=0xd9836FA54D71c2745A26dABa48551E9745983676
+VITE_CONTRACT_ADDRESS=0xb7d950264800EA297253EA583461E39168DDA8B5
 VITE_VERIFIER_URL=http://localhost:3001
 VITE_CHAIN_ID=421614
 VITE_PINATA_GATEWAY=<your_gateway_subdomain>.mypinata.cloud
@@ -255,7 +255,7 @@ curl -X POST http://localhost:3001/admin/tally/<pollId> \
 ## 7. Contract Reference
 
 **Contract:** `FhenixPoll.sol` on Arbitrum Sepolia  
-**Address:** `0xd9836FA54D71c2745A26dABa48551E9745983676`
+**Address:** `0xb7d950264800EA297253EA583461E39168DDA8B5`
 
 | Function | Caller | Purpose |
 |---|---|---|

@@ -39,10 +39,14 @@ async function runOnce(): Promise<void> {
         continue
       }
 
-      if (!onChainPoll.exists) continue
+      if (!onChainPoll.exists) {
+        console.log(`[tally-runner] Poll ${pollId.slice(0, 12)}… not found on current contract — skipping`)
+        done.add(pollId)
+        continue
+      }
 
-      // Skip polls still running
-      if (l1Block <= onChainPoll.endBlock) {
+      // Skip polls still running — require endBlock + 2 to avoid racing the boundary block
+      if (l1Block <= onChainPoll.endBlock + 2) {
         console.log(
           `[tally-runner] Poll ${pollId.slice(0, 12)}… active (L1=${l1Block}, end=${onChainPoll.endBlock})`
         )
@@ -54,9 +58,13 @@ async function runOnce(): Promise<void> {
         await runTallyForPoll(pollId)
         done.add(pollId)
       } catch (e: unknown) {
-        console.error(`[tally-runner] Error tallying ${pollId}:`, (e as Error).message)
-      }
-    }
+        const msg = (e as Error).message ?? ''
+        if (/Poll still open/i.test(msg)) {
+          console.log(`[tally-runner] Poll ${pollId.slice(0, 12)}… not yet closed on-chain — will retry`)
+        } else {
+          console.error(`[tally-runner] Error tallying ${pollId}:`, msg)
+        }
+      }    }
   }
 }
 

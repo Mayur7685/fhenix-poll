@@ -13,7 +13,7 @@
   "dependencies": {
     "@cofhe/abi": "^0.4.0",
     "@cofhe/react": "^0.4.0",
-    "@cofhe/sdk": "^0.4.0",
+    "@cofhe/sdk": "^0.5.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@metamask/connect-evm": "^0.10.0",

@@ -4,7 +4,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCofheWriteContract } from '@cofhe/react'
+import { useWriteContract } from '../hooks/useWriteContract'
 import { useConnection } from 'wagmi'
 import { arbitrumSepolia } from '../lib/chains'
 import { communityIdFromName, cidToBytes32, publicClient } from '../lib/fhenix'
@@ -399,7 +399,7 @@ function WizardStepper({ step }: { step: number }) {
 export default function CreateCommunityWizard() {
   const navigate = useNavigate()
   const { address, isConnected } = useConnection()
-  const { writeContractAsync }   = useCofheWriteContract()
+  const { writeContractAsync }   = useWriteContract()
 
   const [step, setStep]       = useState(0)
   const [saving, setSaving]   = useState(false)

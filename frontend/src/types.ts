@@ -182,3 +182,58 @@ export interface TallyResult {
   optionId: number
   score: bigint                 // raw uint32 from contract after reveal
 }
+
+// ─── Hierarchical voting snapshots ────────────────────────────────────────────
+
+export interface ScopedSnapshot {
+  snapshot_id:      number
+  poll_id:          string
+  community_id:     string
+  parent_option_id: number
+  block_height:     number
+  total_votes:      number
+  rank_1_option:    number
+  rank_2_option:    number
+  rank_3_option:    number
+  rank_4_option:    number
+}
+
+export type ScopedSnapshotMap = Map<number, ScopedSnapshot>
+
+// ─── Wave 4: Posts ────────────────────────────────────────────────────────────
+
+export interface PostMetadata {
+  post_id: string
+  community_id: string
+  author: string
+  title: string
+  body: string
+  ipfs_cid?: string
+  content_hash: string
+  created_at_block: number
+}
+
+// ─── Wave 4: Quests ───────────────────────────────────────────────────────────
+
+export type QuestType = 'VOTE_COUNT' | 'REFERRAL_COUNT' | 'CREDENTIAL_AGE'
+
+export interface QuestInfo {
+  quest_id: string
+  community_id: string
+  title: string
+  description: string
+  quest_type: QuestType
+  target: number
+  reward_description: string
+  reward_hash: string
+  expiry_block: number
+  ipfs_cid?: string
+  creator_address?: string
+}
+
+export interface QuestProgress {
+  quest_id: string
+  participant: string
+  progress: number
+  completed: boolean
+}

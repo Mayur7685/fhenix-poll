@@ -16,8 +16,8 @@ import type { VoteCastEvent } from '../hooks/useVoteHistory'
 
 interface StoredSubmission {
   pollId:   string
-  ranking:  Record<string, number>   // optionId → rank
-  options:  { id: string; label: string }[]
+  ranking:  Record<string, number>
+  options:  { id: string; label: string; parentId?: number }[]
   votedAt:  number
 }
 
@@ -105,17 +105,43 @@ function VoteCard({ vote }: { vote: EnrichedVote }) {
           .filter(o => o.rank > 0)
           .sort((a, b) => a.rank - b.rank)
         if (ranked.length === 0) return null
+
+        // Group by parent: render root options, then children indented under each parent
+        const roots = ranked.filter(o => !o.parentId || o.parentId === 0)
+        const byParent = new Map<number, typeof ranked>()
+        ranked.filter(o => o.parentId && o.parentId !== 0).forEach(o => {
+          const list = byParent.get(o.parentId!) ?? []
+          list.push(o)
+          byParent.set(o.parentId!, list)
+        })
+
         return (
           <div className="px-5 pb-3">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">My Submission</p>
-            <div className="space-y-1">
-              {ranked.map(o => (
-                <div key={o.id} className="flex items-center gap-2">
-                  <span className="w-4 h-4 flex items-center justify-center bg-[#0070F3] text-white text-[9px] font-bold rounded-full shrink-0">
-                    {o.rank}
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">My Submission</p>
+            <div className="space-y-1.5">
+              {roots.map(o => (
+                <div key={o.id}>
+                  <span className="text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full font-medium inline-block">
+                    #{o.rank} · {o.label}
                   </span>
-                  <span className="text-xs text-gray-700 truncate">{o.label}</span>
+                  {byParent.has(Number(o.id)) && (
+                    <div className="ml-4 mt-1 flex flex-wrap gap-1">
+                      {byParent.get(Number(o.id))!.map(child => (
+                        <span key={child.id}
+                          className="text-[11px] bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-medium">
+                          #{child.rank} · {child.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              ))}
+              {/* Orphan children (parentId not in roots) */}
+              {ranked.filter(o => o.parentId && o.parentId !== 0 && !roots.find(r => Number(r.id) === o.parentId)).map(o => (
+                <span key={o.id}
+                  className="text-[11px] bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full font-medium inline-block ml-4">
+                  #{o.rank} · {o.label}
+                </span>
               ))}
             </div>
           </div>

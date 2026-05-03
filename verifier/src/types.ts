@@ -25,17 +25,17 @@ export interface Requirement {
     handle?: string
     serverId?: string
     roleId?: string
-    chatId?: string          // Telegram chat/channel ID for TELEGRAM_MEMBER
+    chatId?: string
     domain?: string
     addresses?: string[]
-    minTxCount?: number      // ONCHAIN_ACTIVITY: minimum transaction count (default 1)
-    minRepos?: number        // GITHUB_ACCOUNT: minimum public repos
-    minFollowers?: number    // GITHUB_ACCOUNT: minimum followers
-    orgName?: string         // GITHUB_ACCOUNT: must be member of GitHub org
-    commitsRepo?: string     // GITHUB_ACCOUNT: "owner/repo" — must have committed here
-    minCommits?: number      // GITHUB_ACCOUNT: minimum commits to commitsRepo (default 1)
-    starredRepo?: string     // GITHUB_ACCOUNT: "owner/repo" — user must have starred this
-    vote_weight?: number     // per-requirement EV override; falls back to DEFAULT_WEIGHTS
+    minTxCount?: number
+    minRepos?: number
+    minFollowers?: number
+    orgName?: string
+    commitsRepo?: string
+    minCommits?: number
+    starredRepo?: string
+    vote_weight?: number
   }
 }
 
@@ -52,15 +52,16 @@ export interface PollOptionInfo {
 }
 
 export interface PollInfo {
-  poll_id: string            // field value as numeric string
+  poll_id: string
   title: string
   description?: string
   required_credential_type: number
   created_at_block: number
-  end_block?: number         // block height after which voting closes
+  end_block?: number
   options: PollOptionInfo[]
-  ipfs_cid?: string          // CID of the full poll metadata on IPFS (Pinata)
-  creator_address?: string  // wallet address of poll creator — verified server-side
+  ipfs_cid?: string
+  creator_address?: string
+  poll_type?: "flat" | "hierarchical"
 }
 
 export interface CommunityConfig {
@@ -68,11 +69,11 @@ export interface CommunityConfig {
   name: string
   description: string
   logo?: string
-  credential_type: number        // 1–255, tier issued on pass
-  credential_expiry_days: number // e.g. 365
+  credential_type: number
+  credential_expiry_days: number
   requirement_groups: RequirementGroup[]
   polls?: PollInfo[]
-  creator?: string               // EVM address of community creator
+  creator?: string
 }
 
 export type ConnectorType =
@@ -84,7 +85,7 @@ export type ConnectorType =
 
 export interface ConnectedAccount {
   type: ConnectorType
-  identifier: string   // wallet address, username, etc.
+  identifier: string
   verified: boolean
   verifiedAt: number
 }
@@ -93,4 +94,42 @@ export interface CheckResult {
   requirementId: string
   passed: boolean
   error?: string
+}
+
+// ─── Wave 4: Posts ────────────────────────────────────────────────────────────
+
+export interface PostMetadata {
+  post_id: string        // bytes32 hex
+  community_id: string   // bytes32 hex
+  author: string         // EVM address
+  title: string
+  body: string           // markdown content
+  ipfs_cid?: string
+  content_hash: string   // keccak256(ipfs_cid) stored on-chain
+  created_at_block: number
+}
+
+// ─── Wave 4: Quests ───────────────────────────────────────────────────────────
+
+export type QuestType = "VOTE_COUNT" | "REFERRAL_COUNT" | "CREDENTIAL_AGE"
+
+export interface QuestInfo {
+  quest_id: string       // bytes32 hex
+  community_id: string   // bytes32 hex
+  title: string
+  description: string
+  quest_type: QuestType
+  target: number
+  reward_description: string
+  reward_hash: string    // keccak256(reward metadata IPFS CID)
+  expiry_block: number
+  ipfs_cid?: string
+  creator_address?: string
+}
+
+export interface QuestProgress {
+  quest_id: string
+  participant: string    // EVM address
+  progress: number
+  completed: boolean
 }

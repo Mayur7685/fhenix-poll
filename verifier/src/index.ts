@@ -7,11 +7,14 @@ import { getCurrentBlockHeight, signAttestation, computeSocialNullifier, getVeri
 import { loadCommunities, getCommunityConfig, getAllCommunities, saveCommunityConfig } from "./communities.js"
 import { pinJSON, isPinataConfigured, ipfsUrl } from "./pinata.js"
 
-import { ConnectedAccount, CommunityConfig, PollInfo } from "./types.js"
+import { ConnectedAccount, CommunityConfig, PollInfo, PostMetadata, QuestInfo, QuestProgress } from "./types.js"
 import { generateState, consumeState, pkce, popupSuccess, popupError, storeUserToken } from "./oauth.js"
 import { verifyTelegramAuth } from "./checkers/social_follow.js"
 import { initSubmissions, saveSubmission, getSubmissions } from "./submissions.js"
 import { startTallyRunner, manualTally } from "./tally-runner.js"
+import { startQuestRunner } from "./quest-runner.js"
+import { initPosts, savePost, getPost, getCommunityPosts } from "./posts.js"
+import { initQuests, saveQuest, getQuest, getCommunityQuests, saveQuestProgress, getQuestProgress } from "./quests.js"
 
 const app = express()
 app.use(cors())
@@ -689,11 +692,211 @@ app.get("/submissions/:address", (req: Request, res: Response) => {
   res.json(getSubmissions(address))
 })
 
+// ─── Wave 4: Posts ────────────────────────────────────────────────────────────
+
+// POST /pin/post — pin post content to IPFS, return CID + content_hash
+app.post("/pin/post", async (req: Request, res: Response) => {
+  const post = req.body as PostMetadata
+  if (!post.post_id || !post.community_id || !post.author || !post.title) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+
+  let cid: string | undefined
+  if (isPinataConfigured()) {
+    try {
+      cid = await pinJSON(post, `post-${post.post_id}`)
+    } catch (e: any) {
+      console.warn("[pin/post] Pinata failed (non-fatal):", e.message)
+    }
+  }
+
+  res.json({ cid: cid ?? "" })
+})
+
+// POST /posts/confirm — called after createPost() tx confirms
+app.post("/posts/confirm", (req: Request, res: Response) => {
+  const post = req.body as PostMetadata
+  if (!post.post_id || !post.community_id || !post.author) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+  savePost(post)
+  res.json({ ok: true })
+})
+
+// GET /communities/:id/posts — list posts for a community
+app.get("/communities/:id/posts", (req: Request, res: Response) => {
+  const posts = getCommunityPosts(req.params.id)
+  res.json(posts)
+})
+
+// GET /posts/:postId — get a single post
+app.get("/posts/:postId", (req: Request, res: Response) => {
+  const post = getPost(req.params.postId)
+  if (!post) return res.status(404).json({ error: "Post not found" })
+  res.json(post)
+})
+
+// ─── Wave 4: Quests ───────────────────────────────────────────────────────────
+
+// POST /pin/quest — pin quest metadata to IPFS
+app.post("/pin/quest", async (req: Request, res: Response) => {
+  const quest = req.body as QuestInfo
+  if (!quest.quest_id || !quest.community_id || !quest.title) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+
+  let cid: string | undefined
+  if (isPinataConfigured()) {
+    try {
+      cid = await pinJSON(quest, `quest-${quest.quest_id}`)
+    } catch (e: any) {
+      console.warn("[pin/quest] Pinata failed (non-fatal):", e.message)
+    }
+  }
+
+  res.json({ cid: cid ?? "" })
+})
+
+// POST /quests/confirm — called after createQuest() tx confirms
+app.post("/quests/confirm", (req: Request, res: Response) => {
+  const quest = req.body as QuestInfo
+  if (!quest.quest_id || !quest.community_id) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+  saveQuest(quest)
+  res.json({ ok: true })
+})
+
+// GET /communities/:id/quests — list quests for a community
+app.get("/communities/:id/quests", (req: Request, res: Response) => {
+  const quests = getCommunityQuests(req.params.id)
+  res.json(quests)
+})
+
+// GET /quests/:questId — get a single quest
+app.get("/quests/:questId", (req: Request, res: Response) => {
+  const quest = getQuest(req.params.questId)
+  if (!quest) return res.status(404).json({ error: "Quest not found" })
+  res.json(quest)
+})
+
+// GET /quests/:questId/progress/:address — get quest progress for a participant
+app.get("/quests/:questId/progress/:address", (req: Request, res: Response) => {
+  const progress = getQuestProgress(req.params.questId, req.params.address)
+  res.json(progress ?? { quest_id: req.params.questId, participant: req.params.address, progress: 0, completed: false })
+})
+
+// POST /quests/:questId/progress — update quest progress (verifier-only, called by tally runner or admin)
+// This records off-chain progress; on-chain FHE progress is recorded via recordQuestProgress()
+app.post("/quests/:questId/progress", async (req: Request, res: Response) => {
+  const secret = process.env.ADMIN_SECRET
+  if (!secret || req.headers["x-admin-secret"] !== secret) {
+    return res.status(401).json({ error: "Unauthorized" })
+  }
+  const { participant, progress, completed } = req.body as {
+    participant: string
+    progress: number
+    completed: boolean
+  }
+  if (!participant || progress === undefined) {
+    return res.status(400).json({ error: "Missing participant or progress" })
+  }
+  saveQuestProgress({ quest_id: req.params.questId, participant, progress, completed: completed ?? false })
+  res.json({ ok: true })
+})
+
+// ─── Wave 4: Posts ────────────────────────────────────────────────────────────
+
+app.post("/pin/post", async (req: Request, res: Response) => {
+  const post = req.body as PostMetadata
+  if (!post.post_id || !post.community_id || !post.author || !post.title) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+  let cid: string | undefined
+  if (isPinataConfigured()) {
+    try { cid = await pinJSON(post, `post-${post.post_id}`) } catch (e: any) { /* non-fatal */ }
+  }
+  res.json({ cid: cid ?? "" })
+})
+
+app.post("/posts/confirm", (req: Request, res: Response) => {
+  const post = req.body as PostMetadata
+  if (!post.post_id || !post.community_id || !post.author) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+  savePost(post)
+  res.json({ ok: true })
+})
+
+app.get("/communities/:id/posts", (req: Request, res: Response) => {
+  res.json(getCommunityPosts(req.params.id))
+})
+
+app.get("/posts/:postId", (req: Request, res: Response) => {
+  const post = getPost(req.params.postId)
+  if (!post) return res.status(404).json({ error: "Post not found" })
+  res.json(post)
+})
+
+// ─── Wave 4: Quests ───────────────────────────────────────────────────────────
+
+app.post("/pin/quest", async (req: Request, res: Response) => {
+  const quest = req.body as QuestInfo
+  if (!quest.quest_id || !quest.community_id || !quest.title) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+  let cid: string | undefined
+  if (isPinataConfigured()) {
+    try { cid = await pinJSON(quest, `quest-${quest.quest_id}`) } catch (e: any) { /* non-fatal */ }
+  }
+  res.json({ cid: cid ?? "" })
+})
+
+app.post("/quests/confirm", (req: Request, res: Response) => {
+  const quest = req.body as QuestInfo
+  if (!quest.quest_id || !quest.community_id) {
+    return res.status(400).json({ error: "Missing required fields" })
+  }
+  saveQuest(quest)
+  res.json({ ok: true })
+})
+
+app.get("/communities/:id/quests", (req: Request, res: Response) => {
+  res.json(getCommunityQuests(req.params.id))
+})
+
+app.get("/quests/:questId", (req: Request, res: Response) => {
+  const quest = getQuest(req.params.questId)
+  if (!quest) return res.status(404).json({ error: "Quest not found" })
+  res.json(quest)
+})
+
+app.get("/quests/:questId/progress/:address", (req: Request, res: Response) => {
+  const p = getQuestProgress(req.params.questId, req.params.address)
+  res.json(p ?? { quest_id: req.params.questId, participant: req.params.address, progress: 0, completed: false })
+})
+
+// Admin: update quest progress off-chain (on-chain FHE progress via recordQuestProgress)
+app.post("/quests/:questId/progress", (req: Request, res: Response) => {
+  if (req.headers["x-admin-secret"] !== process.env.ADMIN_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" })
+  }
+  const { participant, progress, completed } = req.body as QuestProgress
+  if (!participant || progress === undefined) {
+    return res.status(400).json({ error: "Missing participant or progress" })
+  }
+  saveQuestProgress({ quest_id: req.params.questId, participant, progress, completed: completed ?? false })
+  res.json({ ok: true })
+})
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 loadCommunities()
 initSubmissions()
+initPosts()
+initQuests()
 void startTallyRunner()
+void startQuestRunner()
 
 const PORT = Number(process.env.PORT ?? 3001)
 app.listen(PORT, () => {

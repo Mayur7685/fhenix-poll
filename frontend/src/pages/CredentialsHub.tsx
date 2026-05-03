@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useWallet } from '../hooks/useWallet'
-import { useCofheWriteContract } from '@cofhe/react'
+import { useWriteContract } from '../hooks/useWriteContract'
 import { getBlockHeight, getCredential } from '../lib/fhenix'
 import { FHENIX_POLL_ABI, CONTRACT_ADDRESS } from '../lib/abi'
 import { getCredentialParams } from '../lib/verifier'
@@ -119,7 +119,7 @@ function CommunityCredentialRow({
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CredentialsHub() {
   const { address, isConnected }      = useWallet()
-  const { writeContractAsync }        = useCofheWriteContract()
+  const { writeContractAsync }        = useWriteContract()
 
   const [communities, setCommunities]           = useState<CommunityConfig[]>([])
   const [credentialMap, setCredentialMap]       = useState<Map<string, Credential>>(new Map())

@@ -36,3 +36,7 @@ logs/
 *.log
 
 verifier/communities/*.json
+verifier/submissions/*.json
+verifier/posts/*.json
+verifier/quests/*.json
+verifier/quest-progress/*.json
