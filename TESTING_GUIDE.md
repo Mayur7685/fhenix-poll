@@ -82,7 +82,13 @@ Tally runner checks every 60s. After poll closes (~12s for 1blk):
 [tally] Poll fully tallied.
 ```
 
-Manual trigger:
+**Manual reveal by poll creator (if auto-tally hasn't run yet):**
+1. Navigate to the poll → **Results →**
+2. Click **Reveal Tally** (only visible to poll creator, only after poll closes)
+3. Two transactions fire automatically: `requestTallyReveal` then `publishTallyResult` × N
+4. Results appear once all options are published
+
+Manual trigger via admin endpoint:
 ```bash
 curl -X POST http://localhost:3001/admin/tally/<POLL_ID> \
   -H "x-admin-secret: <ADMIN_SECRET>"
